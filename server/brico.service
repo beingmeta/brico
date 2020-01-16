@@ -1,0 +1,21 @@
+[Unit]
+Description=Start daemon brico
+Requires=network.target local-fs.target
+After=kno-daemons.service upsource.target
+
+[Service]
+Type=simple
+RemainAfterExit=true
+Environment=KNO_LAUNCHER=brico.service RUNUSER=knod RUNGROUP=kno RUNDIR=/var/run/kno/daemons/ LOGDIR=/var/log/kno/daemons/
+PassEnvironment=KNO_LAUNCHER RUNUSER RUNGROUP
+TimeoutStartSec=900
+TimeoutStopSec=300
+ExecStartPre=/bin/mkdir -p /var/run/kno/daemons/ /var/log/kno/daemons/ /var/log/kno/bugjar/
+ExecStartPre=/bin/chown knod /var/run/kno/daemons/ /var/log/kno/daemons/ /var/log/kno/bugjar/
+ExecStartPre=/bin/chgrp kno /var/run/kno/daemons/ /var/log/kno/daemons/ /var/log/kno/bugjar/
+ExecStartPre=/bin/chmod g+rwx /var/run/kno/daemons/ /var/log/kno/daemons/
+ExecStartPre=/bin/chmod go+rwx /var/log/kno/bugjar/
+ExecStart=/usr/bin/knod /etc/kno/daemons/brico.fdz
+
+[Install]
+WantedBy=default.target
