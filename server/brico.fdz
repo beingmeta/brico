@@ -3,9 +3,10 @@
 ;;; This is the server control file for a BRICO knowledge base server
 
 (define stdconfig
-  (if (file-exists? (get-component "custom.cfg"))
-      "custom.cfg"
-      "standard.cfg"))
+  (tryseq (file #("brico_local.cfg" "brico.cfg"
+		  "custom.cfg" "local.cfg" "standard.cfg"))
+    (tryif (file-exists? (get-component file))
+      file)))
 (config! 'config (get-component (config 'srvconfig stdconfig)))
 
 (use-module '{brico brico/lookup brico/dterms brico/dtermcache})
