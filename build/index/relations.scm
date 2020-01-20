@@ -36,7 +36,7 @@
 	 (isa-index (target-index "isa.index"))
 	 (index  (make-aggregate-index {relns-index isa-index}
 				       [register #t])))
-    (engine/run indexer (difference (pool-elts pools) (?? 'source @1/1))
+    (engine/run indexer (difference (pool-elts pools) (?? 'source @1/1) (?? 'status 'deleted))
       `#[loop #[index ,index]
 	 batchsize 2000 batchrange 3
 	 checkfreq 15

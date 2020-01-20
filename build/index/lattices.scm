@@ -47,7 +47,7 @@
 		     (sample-n (pool-elts pools) (config 'just))
 		     (pool-elts pools)))
 	 (target (get-index)))
-    (engine/run index-batch (difference frames (?? 'source @1/1))
+    (engine/run index-batch (difference frames (?? 'source @1/1) (?? 'status 'deleted))
       `#[loop #[index ,target]
 	 batchsize 25000 batchrange 4
 	 checkfreq 15

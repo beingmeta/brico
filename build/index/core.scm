@@ -72,7 +72,9 @@
     (prefetch-oids! frames)
     (do-choices (f frames)
       (when fixup (fixup f))
-      (cond ((test f 'source index-sources)
+      (cond ((or (test f 'type 'deleted) (test f 'deleted))
+	     (index-frame core.index 'status 'deleted))
+	    ((test f 'source index-sources)
 	     (index-frame wordnet.index
 		 f '{type source has words hypernym hyponym sensecat
 		     sensekeys synsets verb-frames pertainym
@@ -88,7 +90,8 @@
 	    ((test f 'type '{slot language lexslot kbsource})
 	     (index-brico core.index f)
 	     (index-frame core.index f index-also))
-	    ((test f 'source) (index-frame core.index f 'source))))
+	    ((test f 'source) (index-frame core.index f 'source))
+	    (else (index-frame core.index f 'status 'deleted))))
   (swapout frames)))
 
 (define (main . names)

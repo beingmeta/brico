@@ -75,7 +75,7 @@
 	 (norms.index (target-index "norms.index"))
 	 (aliases.index (target-index "aliases.index"))
 	 (names.index (target-index "names.index"))
-	 (oids (difference (pool-elts pools) (?? 'source @1/1))))
+	 (oids (difference (pool-elts pools) (?? 'source @1/1) (?? 'status 'deleted))))
     (drop! core.index (cons 'has lexslots))
     (engine/run index-words oids
       `#[loop #[core.index ,core.index

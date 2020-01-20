@@ -98,7 +98,7 @@
 	 (target termlogic.index))
     (if (config 'phase2) (config! 'appid "termlogic2") (config! 'appid "termlogic1"))
     (engine/run (if (config 'phase2 #f) index-phase2 index-phase1)
-	(pool-elts pools)
+	(difference (pool-elts pools) (?? 'source @1/1) (?? 'status 'deleted))
       `#[loop #[indexes ,target]
 	 batchsize 25000 batchrange 4
 	 nthreads ,(config 'nthreads #t)

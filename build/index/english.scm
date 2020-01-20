@@ -76,7 +76,7 @@
 	 (glosses.index (target-index "en_glosses.index" [keyslot engloss]))
 	 (names.index (target-index "en_names.index" #[keyslot names]))
 	 (other.index (target-index "en_other.index"))
-	 (oids (difference (pool-elts pools) (?? 'source @1/1))))
+	 (oids (difference (pool-elts pools) (?? 'source @1/1) (?? 'status 'deleted))))
     (engine/run index-english oids
       `#[loop #[core.index ,core.index
 		words.index ,words.index 
