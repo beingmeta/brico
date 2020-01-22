@@ -253,14 +253,22 @@
 
 ;;; Common tables
 
-(define-init all-languages (file->dtype (get-component "data/languages.dtype")))
-(define-init language-map (file->dtype (get-component "data/langmap.table")))
-(define-init norm-map (file->dtype (get-component "data/normmap.table")))
-(define-init alias-map (file->dtype (get-component "data/aliasmap.table")))
-(define-init gloss-map (file->dtype (get-component "data/glossmap.table")))
-(define-init indicator-map (file->dtype (get-component "data/indicatormap.table")))
-(define-init frag-map (file->dtype (get-component "data/fragmap.table")))
-(define-init ids-table (file->dtype (get-component "data/ids.table")))
+(define-init all-languages 
+  (file->dtype (get-component "data/languages.dtype")))
+(define-init language-map
+  (file->dtype (get-component "data/langmap.table")))
+(define-init norm-map
+  (file->dtype (get-component "data/normmap.table")))
+(define-init alias-map
+  (file->dtype (get-component "data/aliasmap.table")))
+(define-init gloss-map
+  (file->dtype (get-component "data/glossmap.table")))
+(define-init indicator-map
+  (file->dtype (get-component "data/indicatormap.table")))
+(define-init frag-map
+  (file->dtype (get-component "data/fragmap.table")))
+(define-init ids-table
+  (file->dtype (get-component "data/ids.table")))
 
 (define index-map indicator-map)
 
