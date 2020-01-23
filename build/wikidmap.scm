@@ -77,7 +77,8 @@
 	 (candidates (?? @?en {words (tryif lower (downcase words))})))
     (when spec 
       (do-choices (slotid (getkeys spec))
-	(set! candidates (intersection candidates (?? slotid (get spec slotid))))))
+	(set! candidates (intersection candidates 
+				       (?? slotid (get spec slotid))))))
     (reject candidates 'wikidref)))
 
 (defambda (wikid/getmap wikidframes (spec #f) (opts #f))
@@ -90,9 +91,10 @@
 	     (lognotice |WikidMap| 
 	       "Found existing " candidate " for " wikidframe)
 	     (wikidmap! candidate wikidframe opts))
-	   (singleton candidate)
-	   (tryif (getopt opts 'import #f)
-	     (wikid/import! wikidframes opts))))))
+	   (cond ((singleton? candidate) candidate)
+		 ((and (fail? candidate) (getopt opts 'import #f))
+		  (wikid/import! wikidframes opts))
+		 (else candidate))))))
 
 (define (copy-lexslots wikid brico index opts)
   ;; We should use 'index' here
