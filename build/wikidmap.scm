@@ -8,7 +8,7 @@
 (use-module '{brico brico/indexing brico/wikid brico/build/wikidata})
 
 (module-export! '{wikidata->brico wikid/brico
-		  wikidmap wikidmap!
+		  wikidmap wikidmatch wikid/getmap wikidmap!
 		  wikid/import!
 		  wikidata/import/enginefn})
 
@@ -26,12 +26,13 @@
 (defambda (unindex! index frame slot value)
   (do-choices (ix index)
     (if (aggregate-index? ix)
-	(unindex (indexctl ix 'partitions) frame slot value)
+	(unindex! (indexctl ix 'partitions) frame slot value)
 	(if (eq? (indexctl ix 'keyslot) slot)
 	    (drop! ix value frame)
 	    (drop! ix (cons slot value) frame)))))
 
-(defambda (wikidmap! brico wikidata (copy #t) (index))
+(defambda (wikidmap! brico wikidata (opts #f) (copy) (index))
+  (default! copy (getopt opts 'copy #t))
   (default! index (get-index brico))
   (let* ((curmap (get brico 'wikidref))
 	 (wikidref (if (string? wikidata) wikidata (get wikidata 'id)))
@@ -70,19 +71,46 @@
 	(or found (fail)))))
 (define wikid/brico (fcn/alias wikidata->brico))
 
-(define (copy-lexslots wikid brico index)
+(define (wikidmatch wikidata (spec #f) (opts #f))
+  (let* ((lower (getopt opts 'lower #f))
+	 (words {(get wikidata 'words) (get wikidata 'norms)})
+	 (candidates (?? @?en {words (tryif lower (downcase words))})))
+    (when spec 
+      (do-choices (slotid (getkeys spec))
+	(set! candidates (intersection candidates (?? slotid (get spec slotid))))))
+    (reject candidates 'wikidref)))
+
+(defambda (wikid/getmap wikidframes (spec #f) (opts #f))
+  (for-choices (wikidframe {(pickoids wikidframes)
+			    (wikid/ref (pickstrigs wikidframes))})
+    (try (?? 'wikidref (get wikidframe 'id))
+	 (let ((candidate (for-choices (spec spec)
+			     (wikidmatch wikidframe spec opts))))
+	   (when (singleton? candidate)
+	     (lognotice |WikidMap| 
+	       "Found existing " candidate " for " wikidframe)
+	     (wikidmap! candidate wikidframe opts))
+	   (singleton candidate)
+	   (tryif (getopt opts 'import #f)
+	     (wikid/import! wikidframes opts))))))
+
+(define (copy-lexslots wikid brico index opts)
   ;; We should use 'index' here
   (let* ((wds #[]) (norms #[]) (glosses #[])
 	 (labels (get wikid 'labels))
 	 (aliases (get wikid 'aliases))
-	 (descriptions (get wikid 'descriptions)))
+	 (descriptions (get wikid 'descriptions))
+	 (lower (getopt opts 'lower #f)))
     (do-choices (alias aliases)
       (do-choices (langid (getkeys alias))
 	(let ((v (get alias langid)))
-	  (add! wds langid v))))
+	  (add! wds langid v)
+	  (when lower (add! wds langid (downcase v))))))
     (do-choices (label labels)
       (do-choices (langid (getkeys label))
-	(add! {wds norms} langid (get label langid))))
+	(add! {wds norms} langid (get label langid))
+	(when lower
+	  (add! {wds norms} langid (downcase (get label langid))))))
     (do-choices (description descriptions)
       (do-choices (langid (getkeys description))
 	(add! glosses langid (get description langid))))
@@ -128,8 +156,10 @@
 			@1/4525c("parliamentary group" wikid "P4100")
 			@1/4526d("astronaut mission" wikid "P450")}])
 
-(define (wikid/copy! wikid frame (index wikid.index) (template #f) (unmapped {}))
-  (copy-lexslots wikid frame index)
+(define (wikid/copy! wikid frame (opts #f) (index wikid.index) (template #f) (unmapped {}))
+  (cond ((index? opts) (set! index opts) (set! opts #f))
+	(else (default! index (getopt opts 'index))))
+  (copy-lexslots wikid frame index opts)
   (index-core index frame)
   (do-choices (prop (pickoids (getkeys wikid)))
     (let* ((wikidvals (get wikid prop))
@@ -197,8 +227,9 @@
 			  (wikidata->brico wikidstring))
 		     #f))
 	 (label (try (pick-one (get wikid 'norms)) (pick-one (get wikid 'words))))
+	 (pool (getopt opts 'pool wikid.pool))
 	 (frame (or cached
-		    (frame-create wikid.pool
+		    (frame-create pool
 		      '%id `(WIKID ,label ,wikidstring)
 		      'type {'wikid (getopt opts 'type '{noun thing})} 'source 'wikidata
 		      'wikidref wikidstring
