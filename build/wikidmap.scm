@@ -82,7 +82,7 @@
 
 (defambda (wikid/getmap wikidframes (spec #f) (opts #f))
   (for-choices (wikidframe {(pickoids wikidframes)
-			    (wikid/ref (pickstrigs wikidframes))})
+			    (wikid/ref (pickstrings wikidframes))})
     (try (?? 'wikidref (get wikidframe 'id))
 	 (let ((candidate (for-choices (spec spec)
 			     (wikidmatch wikidframe spec opts))))
