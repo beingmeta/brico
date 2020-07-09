@@ -37,6 +37,9 @@
 
 (define wikidata-build #f)
 
+(define-init set-wikidata-dir!
+  (slambda (dir) (setup-wikidata dir)))
+
 (define (setup-wikidata dir)
   (logwarn |SetupWikidata| dir)
   (if core.index
@@ -98,9 +101,8 @@
   (set! wikidata.index
     (make-aggregate-index {words.index norms.index has.index props.index})))
 
-(config-def! 'wikidata
-  (lambda (var (val #f))
-    (cond ((not val) wikidata.dir)
+(define (config-wikidata-source var (val #f))
+  (cond ((not val) wikidata.dir)
 	  ((not (string? val)) (irritant val |NotADirectoryPath|))
 	  ((and wikidata.dir
 		(equal? (realpath wikidata.dir) (realpath val)))
@@ -108,7 +110,9 @@
 	  (wikidata.dir (irritant wikidata.dir |WikidataAlreadyConfigured|))
 	  ((not (file-directory? val))
 	   (irritant val |NotADirectoryPath|))
-	  (else (setup-wikidata val)))))
+	  (else (set-wikidata-dir! val))))
+(config-def! 'wikidata:source config-wikidata-source)
+(config-def! 'wikidata config-wikidata-source)
 
 (config-def! 'wikidata:build
   (lambda (var (val))
