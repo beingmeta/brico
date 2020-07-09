@@ -7,7 +7,7 @@
 (use-module '{knodb knodb/branches knodb/typeindex knodb/flexindex})
 (use-module '{brico brico/indexing brico/wikid brico/build/wikidata})
 
-(module-export! '{wikidata->brico wikid/brico
+(module-export! '{wikidata->brico wikid/brico wikid/src
 		  wikidmap wikidmatch wikid/getmap wikidmap!
 		  wikid/import!
 		  wikidata/import/enginefn})
@@ -70,6 +70,9 @@
 	(store! wikidmap wikid found)
 	(or found (fail)))))
 (define wikid/brico (fcn/alias wikidata->brico))
+
+(define (wikid/src f)
+  (wikid/ref (get f 'wikidref)))
 
 (define (wikidmatch wikidata (spec #f) (opts #f))
   (let* ((lower (getopt opts 'lower #f))
