@@ -67,12 +67,7 @@
     (indexctl ix 'readonly #f)
     ix))
 
-(defambda (target-index filename (opts #f) (size) (keyslot))
-  (default! size (getopt opts 'size (config 'INDEXSIZE (* 8 #mib))))
-  (default! keyslot (getopt opts 'keyslot (config 'keyslot #f)))
-  (when (not size) (set! size (* 8 #mib)))
-  (unless (position #\/ filename) 
-    (set! filename (mkpath outdir filename)))
+(defambda (access-index filename opts size keyslot)
   (cond ((and (file-exists? filename) (not (config 'REBUILD #f config:boolean)))
 	 (writable-index filename
 			 `(#[register ,(getopt opts 'register #t)]
@@ -88,3 +83,29 @@
 	      (writable-index filename
 			      `(#[register ,(getopt opts 'register #t)]
 				. ,opts)))))
+
+(defambda (target-index filename (opts #f) (pools #f) (size) (keyslot))
+  (default! size (getopt opts 'size (config 'INDEXSIZE (* 8 #mib))))
+  (default! keyslot (getopt opts 'keyslot (config 'keyslot #f)))
+  (when (not size) (set! size (* 8 #mib)))
+  (unless (position #\/ filename) 
+    (set! filename (mkpath outdir filename)))
+  (let ((index (access-index filename opts size keyslot)))
+    (when pools
+      (do-choices (pool pools)
+	(let* ((indexes (or (poolctl pool 'metadata 'indexes) {}))
+	       (root-dir (getopt opts 'indexroot))
+	       (index-path (if root-dir
+			       (strip-prefix (index-source index) root-dir)
+			       (basename (index-source index)))))
+	  (if (has-prefix index-path "/")
+	      (logerr |NoRelative|
+		"Can't find relative reference to " (index-source index)
+		" for the pool " pool)
+	      (if (overlaps? index-path indexes)
+		  (loginfo |ExistingIndex|
+		    "Index path " (write index-path) " is already configured for "
+		    pool)
+		  (begin (poolctl pool 'metadata 'indexes {index-path indexes})
+		    (logwarn |AddIndexPath| (write index-path) " to " pool)))))))
+    index))

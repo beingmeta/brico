@@ -26,16 +26,16 @@
 
 (define lattices-index #f)
 
-(define (get-index)
+(defambda (get-index pools)
   (or lattices-index
-      (let* ((genls.index (target-index "genls.index" #f #default 
+      (let* ((genls.index (target-index "genls.index" #f pools #default 
 					{genls specls genls* specls*}))
-	     (partof.index (target-index "partof.index" #f #default 
+	     (partof.index (target-index "partof.index" #f pools #default 
 					 {parts partof partof* parts*
 					  members memberof members* memberof*
 					  ingredients ingredientof
 					  ingredients* ingredientof*}))
-	     (misc.index (target-index "misc.index"))
+	     (misc.index (target-index "misc.index" #f pools))
 	     (combined (make-aggregate-index {genls.index partof.index misc.index}
 					     [register #t])))
 	(set! lattices-index combined)
@@ -46,7 +46,7 @@
 	 (frames (if (config 'JUST)
 		     (sample-n (pool-elts pools) (config 'just))
 		     (pool-elts pools)))
-	 (target (get-index)))
+	 (target (get-index pools)))
     (engine/run index-batch (difference frames (?? 'source @1/1) (?? 'status 'deleted))
       `#[loop #[index ,target]
 	 batchsize 25000 batchrange 4

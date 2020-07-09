@@ -97,13 +97,14 @@
 (define (main . names)
   (config! 'appid  "indexcore")
   (let* ((pools (use-pool (try (elts names) brico-pool-names)))
-	 (core.index (target-index core-index))
-	 (latlong.index (target-index latlong-index #[keyslot {lat long}]))
-	 (wordnet.index (target-index wordnet-index))
-	 (wikidref.index (target-index wikidref-index #[keyslot wikidref]))
-	 (wikid.index (target-index wikid-index))
+	 (core.index (target-index core-index #f pools))
+	 (latlong.index (target-index latlong-index #[keyslot {lat long}] pools))
+	 (wordnet.index (target-index wordnet-index #f pools))
+	 (wikidref.index (target-index wikidref-index #[keyslot wikidref] pools))
+	 (wikid.index (target-index wikid-index #f pools))
 	 (index (make-aggregate-index {core.index latlong.index wikidref.index}
 				      [register #t])))
+    (commit pools) ;; Save updated INDEXES metadata on pools
     (info%watch "MAIN" core.index wikid.index latlong.index wordnet.index)
     (engine/run indexer (pool-elts pools)
       `#[loop #[core.index ,core.index
@@ -122,6 +123,7 @@
 	 logfns {,engine/log ,engine/logrusage}
 	 logfreq ,(config 'logfreq 50)
 	 logchecks #t])
+    (commit)
     (swapout)
     (let ((wordforms (find-frames core.index 'type 'wordform)))
       (lognotice |Wordforms|
@@ -129,7 +131,8 @@
       (prefetch-oids! wordforms)
       (do-choices (f wordforms)
 	(index-frame wordnet.index f '{word of sensenum language rank type}))
-      (commit wordnet.index))))
+      (commit wordnet.index))
+    (commit)))
 
 (when (config 'optimize #t config:boolean)
   (optimize! '{brico brico/indexing tinygis fifo engine})

@@ -30,7 +30,7 @@
 	 (name-count 0))
     (do-choices f
       (unless  (or (not (test f 'type)) (test f 'source @1/1))
-	(let* ((words {(get f 'words) (get (get f '%words) 'en)})
+	(let* ((words (choice (get f 'words) (get (get f '%words) 'en)))
 	       (norms {(get f 'norms) (get (get f '%norms) 'en)})
 	       (indicators (get (get f '%indicators) 'en))
 	       (aliases (get (get f '%aliases) 'en))
@@ -39,7 +39,7 @@
 		       (pick words capitalized?)
 		       (pick aliases capitalized?)
 		       (pick (get f '{family lastname}) string?)})
-	       (glosses {(get f 'gloss) (get (get f '%glosses) 'en)}))
+	       (glosses (choice (get f 'gloss) (get (get f '%glosses) 'en))))
 	  (index-string words.index f english words)
 	  (index-string norms.index f norm norms)
 	  (index-string aliases.index f enaliases aliases)
@@ -66,16 +66,16 @@
     (optimize! '{engine brico brico/indexing brico/lookup}))
   (dbctl core.index 'readonly #f)
   (let* ((pools (use-pool (try (elts names) brico-pool-names)))
-	 (core.index (target-index "core.index"))
-	 (words.index (target-index "en.index" [keyslot english]))
-	 (frags.index (target-index "en_frags.index" [keyslot frags]))
+	 (core.index (target-index "core.index" #f pools))
+	 (words.index (target-index "en.index" [keyslot english] pools))
+	 (frags.index (target-index "en_frags.index" [keyslot frags] pools))
 	 (indicators.index 
-	  (target-index "en_indicators.index" [keyslot cues]))
-	 (norms.index (target-index "en_norms.index" [keyslot enorm]))
-	 (aliases.index (target-index "en_aliases.index" [keyslot enaliases]))
-	 (glosses.index (target-index "en_glosses.index" [keyslot engloss]))
-	 (names.index (target-index "en_names.index" #[keyslot names]))
-	 (other.index (target-index "en_other.index"))
+	  (target-index "en_indicators.index" [keyslot cues] pools))
+	 (norms.index (target-index "en_norms.index" [keyslot enorm] pools))
+	 (aliases.index (target-index "en_aliases.index" [keyslot enaliases] pools))
+	 (glosses.index (target-index "en_glosses.index" [keyslot engloss] pools))
+	 (names.index (target-index "en_names.index" #[keyslot names] pools))
+	 (other.index (target-index "en_other.index" #f pools))
 	 (oids (difference (pool-elts pools) (?? 'source @1/1) (?? 'status 'deleted))))
     (engine/run index-english oids
       `#[loop #[core.index ,core.index
@@ -101,7 +101,8 @@
 		      names.index}
 	 logfns {,engine/log ,engine/logrusage}
 	 logchecks #t
-	 logfreq ,(config 'logfreq 50)])))
+	 logfreq ,(config 'logfreq 50)])
+    (commit)))
 
 (when (config 'optimize #t config:boolean)
   (optimize! '{brico engine fifo brico/indexing})

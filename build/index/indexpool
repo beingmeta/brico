@@ -1,7 +1,11 @@
 #!/bin/sh
 POOL=${1:-./brico/brico.pool}
 INPUTS=$(dirname ${POOL})
-OUTPUTS=${2:-./fresh/}
+OUTPUT_DIR="${INPUTS}_fresh"
+OUTPUTS=${2:-${OUTPUT_DIR}}
+if [ ! -d ${OUTPUTS} ]; then
+    mkdir ${OUTPUTS};
+fi;
 if [ ! -z "${BRICOSOURCE}" ]; then
     export KNO_BRICOSOURCE=${BRICOSOURCE};
 elif test -f ./brico/brico.pool; then

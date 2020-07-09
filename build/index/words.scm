@@ -78,14 +78,14 @@
     (optimize! '{engine brico brico/indexing brico/lookup}))
   (dbctl core.index 'readonly #f)
   (let* ((pools (knodb/ref (try (elts names) brico-pool-names)))
-	 (core.index (target-index "core.index"))
-	 (words.index (target-index "words.index"))
-	 (frags.index (target-index "frags.index"))
-	 (indicators.index (target-index "indicators.index"))
-	 (glosses.index (target-index "glosses.index"))
-	 (norms.index (target-index "norms.index"))
-	 (aliases.index (target-index "aliases.index"))
-	 (names.index (target-index "names.index"))
+	 (core.index (target-index "core.index" #f pools))
+	 (words.index (target-index "words.index" #f pools))
+	 (frags.index (target-index "frags.index" #f pools))
+	 (indicators.index (target-index "indicators.index" #f pools))
+	 (glosses.index (target-index "glosses.index" #f pools))
+	 (norms.index (target-index "norms.index" #f pools))
+	 (aliases.index (target-index "aliases.index" #f pools))
+	 (names.index (target-index "names.index" #f pools))
 	 (oids (difference (pool-elts pools) (?? 'source @1/1) (?? 'status 'deleted))))
     (drop! core.index (cons 'has lexslots))
     (engine/run index-words oids
@@ -108,7 +108,8 @@
 		      norms.index glosses.index
 		      names.index}
 	 logfns {,engine/log ,engine/logrusage}
-	 logchecks #t])))
+	 logchecks #t])
+    (commit)))
 
 (when (config 'optimize #t config:boolean)
   (optimize! '{brico engine fifo brico/indexing})

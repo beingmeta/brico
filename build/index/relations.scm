@@ -32,8 +32,8 @@
 
 (define (main . names)
   (let* ((pools (use-pool (try (elts names) brico-pool-names)))
-	 (relns-index (target-index relations-index))
-	 (isa-index (target-index "isa.index"))
+	 (relns-index (target-index relations-index #f pools))
+	 (isa-index (target-index "isa.index" #f pools))
 	 (index  (make-aggregate-index {relns-index isa-index}
 				       [register #t])))
     (engine/run indexer (difference (pool-elts pools) (?? 'source @1/1) (?? 'status 'deleted))
@@ -44,7 +44,8 @@
 	 checkpoint ,{pools index}
 	 logfns {,engine/log ,engine/logrusage}
 	 logchecks #t
-	 logfreq 25])) )
+	 logfreq 25])
+    (commit)))
 
 (when (config 'optimize #t config:boolean)
   (optimize! '{brico engine fifo brico/indexing})
