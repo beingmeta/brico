@@ -18,6 +18,10 @@
 (define wikid.background #t)
 (define wikid.opts #f)
 
+(define-init set-wikid-source! 
+  (slambda (spec (opts wikid.opts) (err #f))
+    (or wikid.source (setup-wikid spec opts err))))
+
 (define (setup-wikid source (opts wikid.opts) (err))
   (default! err (getopt opts 'err #t))
   (cond ((and wikid.source
@@ -58,10 +62,15 @@
 			" for WIKID from "  source)))
 	 (set! wikid.source source))))
 
+
 (config-def! 'wikidsource
   (lambda (var (val))
     (if (unbound? val) wikid.source
-	(setup-wikid val wikid.opts #t))))
+	(set-wikid-source! val #default #t))))
+(config-def! 'wikid:source
+  (lambda (var (val))
+    (if (unbound? val) wikid.source
+	(set-wikid-source! val #default #t))))
 
 (config-def! 'wikid:background
   (lambda (var (val))
