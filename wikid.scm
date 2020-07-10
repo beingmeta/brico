@@ -18,7 +18,7 @@
 (define-init wikid.indexes #f)
 (define-init wikid.opts #[background #t readonly #t basename "wikid.pool"])
 
-(define (setup-wikid pool (opts #f))
+(define (setup-wikid pool (opts wikid.opts))
   (and (pool? pool) (eq? (pool-base pool) @1/8000000)
        (let ((indexes (pool/getindexes pool)))
 	 (lognotice |WikidConfig| pool)
@@ -29,7 +29,7 @@
 	 pool)))
 
 (define-init wikidsource-configfn
-  (knodb/configfn setup-wikid [background #t]))
+  (knodb/configfn setup-wikid wikid.opts))
 
 (propconfig! 'wikid:background wikid.opts 'background)
 (propconfig! 'wikid:readonly wikid.opts 'readonly)

@@ -60,10 +60,11 @@
 
 (defambda (pick-indexes indexes slots)
   (filter-choices (index indexes)
-    (if (dbctl index 'keyslot)
-	(overlaps? (dbctl index 'keyslot) slots)
-	(and (dbctl index 'slots)
-	     (exists? (intersection (elts (dbctl index 'slots)) slots))))))
+    (and (index? index)
+	 (if (dbctl index 'keyslot)
+	     (overlaps? (dbctl index 'keyslot) slots)
+	     (and (dbctl index 'slots)
+		  (exists? (intersection (elts (dbctl index 'slots)) slots)))))))
 
 (define (config-absfreqs var (val))
   (cond ((not (bound? val)) absfreqs)
@@ -540,7 +541,7 @@
 (define use-wordforms #t)
 
 (define (wordform-concept-frequency concept language term)
-  (and use-wordforms (in-pool? concept brico-pool) (eq? language english)
+  (and use-wordforms (in-pool? concept brico.pool) (eq? language english)
        (try (tryif term
 		   (get (?? 'of concept 'word term 'language language) 'freq))
 	    (reduce-choice + (?? 'of concept) 0 'freq)
@@ -563,9 +564,9 @@
 (defambda (concept-frequency-prefetch concepts language words)
   (??/prefetch! (pick (elts (map second freqfns)) oid?) concepts)
   (when (and use-wordforms (eq? language english) (exists? words))
-    (parallel (??/prefetch! 'of (pick concepts brico-pool))
+    (parallel (??/prefetch! 'of (pick concepts brico.pool))
 	      (??/prefetch! 'word words)))
-  (prefetch-oids! (?? 'of (pick concepts brico-pool)
+  (prefetch-oids! (?? 'of (pick concepts brico.pool)
 		      'word words)))
 
 ;;; Configuring freqfns
@@ -649,9 +650,9 @@
 ;;; EXPORTS
 
 (module-export!
- '{brico-pool
-   brico-index brico.db
-   xbrico-pool names-pool places-pool
+ '{brico.pool
+   brico.index brico.db
+   xbrico.pool names-pool places-pool
    brico.pool brico.index brico.indexes
    xbrico.pool names.pool places.pool
    absfreqs getabsfreq
@@ -708,6 +709,7 @@
 	 (set! brico.pool pool)
 	 (set! brico.index (pool/getindex pool))
 	 (set! wikidref.index (pick-indexes indexes 'wikidref))
+	 (set! core.index (pick indexes index-source has-suffix "core.index"))
 	 (set! en.index (pick-indexes indexes en))
 	 (set! en_norms.index (pick-indexes indexes en_norms))
 	 (set! en_aliases.index (pick-indexes indexes en_aliases))
