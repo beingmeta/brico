@@ -3,7 +3,8 @@
 
 (in-module 'brico/wikid)
 
-(use-module '{texttools reflection logger varconfig stringfmts knodb})
+(use-module '{texttools reflection logger varconfig stringfmts 
+	      knodb knodb/config})
 
 (define-init %loglevel %notify%)
 ;;(set! %loglevel %debug%)
@@ -11,74 +12,29 @@
 (module-export! '{wikid.pool wikid.index wikid.source})
 (define %nosubst '{wikid.source wikid.pool wikid.index wikid.background})
 
-(define wikid.source #f)
-(define wikid.pool #f)
-(define wikid.index #f)
-(define wikid.indexes #f)
-(define wikid.background #t)
-(define wikid.opts #f)
+(define-init wikid.source #f)
+(define-init wikid.pool #f)
+(define-init wikid.index #f)
+(define-init wikid.indexes #f)
+(define-init wikid.opts #[background #t readonly #t basename "wikid.pool"])
 
-(define-init set-wikid-source! 
-  (slambda (spec (opts wikid.opts) (err #f))
-    (or wikid.source (setup-wikid spec opts err))))
+(define (setup-wikid pool (opts #f))
+  (and (pool? pool) (eq? (pool-base pool) @1/8000000)
+       (let ((indexes (pool/getindexes pool)))
+	 (lognotice |WikidConfig| pool)
+	 (set! wikid.pool pool)
+	 (set! wikid.index (pool/getindex pool))
+	 (set! wikid.indexes indexes)
+	 (set! wikid.source (pool-source pool))
+	 pool)))
 
-(define (setup-wikid source (opts wikid.opts) (err))
-  (default! err (getopt opts 'err #t))
-  (cond ((and wikid.source
-	      (or (equal? source wikid.source)
-		  (equal? (realpath source) wikid.source)))
-	 (unless (config 'quiet)
-	   (loginfo |RedundantWikiDInit|
-	     "Wikid is already consistently provided from wikid.source"))
-	 wikid.source)
-	((and wikid.source err)
-	 (irritant wikid.source |WikidSourceConflict|))
-	(wikid.source wikid.source)
-	((or (position #\@ source) (position #\: source))
-	 (set! wikid.pool (knodb/ref source (opt+ opts 'pool source)))
-	 (set! wikid.index
-	   (knodb/ref source (opt+ opts 'index source 
-				    'background wikid.background)))
-	 (unless (config 'quiet)
-	   (lognotice |WIKID| "being accessed from " wikid.source))
-	 (set! wikid.indexes wikid.index)
-	 (set! wikid.source source))
-	((not (file-directory? source))
-	 (irritant source |WikidSourceNotADirectory|))
-	((not (file-exists? (mkpath source "wikid.pool")))
-	 (irritant source |NoWikidPool|))
-	(else
-	 (set! wikid.pool (knodb/ref (mkpath source "wikid.pool") wikid.opts))
-	 (let* ((indexfiles (pick (getfiles source) has-suffix ".index"))
-		(use-opts (opt+ opts 'register (getopt opts 'register #t)
-				'background wikid.background))
-		(indexes (knodb/ref indexfiles use-opts)))
-	   (set! wikid.indexes indexes)
-	   (set! wikid.index (make-aggregate-index indexes [register #t]))
-	   (unless (config 'quiet)
-	     (lognotice |WIKID| "Using one pool, "
-			($size (getvalues (dbctl wikid.pool 'adjuncts)) "adjunct") ", and "
-			($size indexes "index" "indexes")
-			" for WIKID from "  source)))
-	 (set! wikid.source source))))
+(define-init wikidsource-configfn
+  (knodb/configfn setup-wikid [background #t]))
 
+(propconfig! 'wikid:background wikid.opts 'background)
+(propconfig! 'wikid:readonly wikid.opts 'readonly)
 
-(config-def! 'wikidsource
-  (lambda (var (val))
-    (if (unbound? val) wikid.source
-	(set-wikid-source! val #default #t))))
-(config-def! 'wikid:source
-  (lambda (var (val))
-    (if (unbound? val) wikid.source
-	(set-wikid-source! val #default #t))))
+(config-def! 'wikid:source wikidsource-configfn)
+(config-def! 'wikidsource wikidsource-configfn)
 
-(config-def! 'wikid:background
-  (lambda (var (val))
-    (cond ((unbound? val) wikid.background)
-	  ((and (not val) wikid.background)
-	   (irritant wikid.background '|CantRemoveFromBackground|))
-	  ((and val wikid.background) wikid.index)
-	  (else (use-index wikid.indexes)
-		(set! wikid.background #t)
-		wikid.index))))
 

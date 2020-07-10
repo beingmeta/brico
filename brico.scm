@@ -4,15 +4,11 @@
 (in-module 'brico)
 ;;; Using the BRICO database from Kno
 
-(define %nosubst '{bricosource
-		   brico-pool brico-index brico.db
-		   xbrico-pool names-pool places-pool
+(define %nosubst '{bricosource brico.source
 		   brico.pool brico.index brico.indexes
-		   xbrico.pool names.pool places.pool
-		   wordnet.adjunct attic.adjunct
 		   freqfns use-wordforms})
 
-(use-module '{texttools reflection logger varconfig knodb})
+(use-module '{texttools reflection logger varconfig knodb knodb/config})
 (use-module 'usedb)
 ;; For custom methods
 (use-module 'rulesets)
@@ -25,27 +21,16 @@
 
 ;;; Configuring bricosource
 
-(define bricosource #f)
-(define brico-pool {})
-(define brico-index {})
-(define brico.reduced #f)
-
-(define xbrico-pool {})
-(define names-pool {})
-(define places-pool {})
-
+(define-init brico.source #f)
 (define brico.pool {})
 (define brico.index {})
 (define brico.indexes {})
-(define core.index {})
+(define brico.opts #[background #t readonly #t basename "brico.pool"])
+
 (define wikidref.index {})
 (define wordnet.index #f)
-(define lattice.index #f)
+(define core.index {})
 (define termlogic.index #f)
-
-(define xbrico.pool {})
-(define names.pool {})
-(define places.pool {})
 
 (define en.index #f)
 (define en_norms.index #f)
@@ -54,8 +39,6 @@
 (define words.index #f)
 (define norms.index #f)
 (define aliases.index #f)
-
-(define names.index #f)
 
 (define wordnet.adjunct #f)
 (define attic.adjunct #f)
@@ -70,174 +53,17 @@
 
 (module-export! '{wordnet.adjunct attic.adjunct})
 
-(define brico.db #f)
-(define brico-dir #f)
-
-(define brico-readonly #t)
-(varconfig! brico:readonly brico-readonly)
-
-(define brico-background #t)
-(varconfig! brico:background brico-background)
-
-(define brico-opts #[])
-
 (define absfreqs {})
 
 (define host-string '(+ {(isalnum) "-"}))
 (define host-name `#((* #(,host-string ".")) ,host-string))
 
-(defambda (setup-brico source (success #f) (setup #f) (use-indexes #f)
-		       (use-opts brico-opts))
-  (unless (and (testopt use-opts 'readonly brico-readonly)
-	       (testopt use-opts 'readonly brico-background))
-    (set! use-opts (deep-copy brico-opts))
-    (store! use-opts 'readonly brico-readonly)
-    (store! use-opts 'background brico-background))
-  (logdebug |SetupBrico| source)
-  (cond ((ambiguous? source)
-	 (do-choices (elt source)
-	   (unless success
-	     (when (setup-brico elt) (set! success #t)))))
-	((or (pair? source) (vector? source))
-	 (doseq (elt source)
-	   (unless success
-	     (when (setup-brico elt) (set! success #t)))))
-	((not (string? source)))
-	((textsearch #{"," ";" ":" "|"} source)
-	 (let* ((first-sep (textsearch #{"," ";" ":" "|"} source))
-		(sepchar (slice source first-sep (1+ first-sep))))
-	   (set! success
-	     (setup-brico (remove "" (segment source sepchar))))))
-	((and (has-suffix source {".pool" ".index"})
-	      (file-exists? source))
-	 (set! success (setup-brico (dirname (abspath source)))))
-	((and (file-directory? source) 
-	      (file-exists? (mkpath source "brico.db")))
-	 (set! success (setup-brico (mkpath source "brico.db"))))
-	((file-directory? source)
-	 (let ((pools {}) (indexes {}) (failed #f) 
-	       (sources (getfiles source)))
-	   (do-choices (file sources)
-	     (cond ((or (and (string? file) (has-suffix file ".pool"))
-			    (and (table? file) (test file '{pool pooltype})))
-			(set+! pools (pool/ref file use-opts)))
-		       ((or (and (string? file) (has-suffix file ".index"))
-			    (and (table? file) (test file '{index indextype})))
-			(set+! indexes (open-index file use-opts))))
-	     ;; (onerror
-	     ;; 	 (cond ((or (and (string? file) (has-suffix file ".pool"))
-	     ;; 		    (and (table? file) (test file '{pool pooltype})))
-	     ;; 		(set+! pools (pool/ref file use-opts)))
-	     ;; 	       ((or (and (string? file) (has-suffix file ".pool"))
-	     ;; 		    (and (table? file) (test file '{pool pooltype})))
-	     ;; 		(set+! indexes (open-index file use-opts))))
-	     ;; 	 (lambda (ex) 
-	     ;; 	   (logwarn |DBFailed| "Couldn't use " file)
-	     ;; 	   (set! failed #t)
-	     ;; 	   (break)))
-)
-	   (unless (config 'quiet)
-	     (when (or (exists? pools) (exists? indexes))
-	       (lognotice |BRICO|
-		 "Using " (choice-size pools) " pools "
-		 "and " (choice-size indexes) " indexes for BRICO "
-		 "from " source)
-	       (logdebug |BRICO|
-		 "Loaded " (choice-size pools) " pools "
-		 "and " (choice-size indexes) " indexes:"
-		 (do-choices (pool pools) (printout "\n\t" pool))
-		 (do-choices (index indexes) (printout "\n\t" index)))))
-	   (when  (and (not failed) (exists? pools) (exists? indexes)
-		       (name->pool "brico.framerd.org"))
-	     (set! brico.db `#[%pools ,pools %indexes ,indexes opts ,use-opts])
-	     (set! use-indexes indexes)
-	     (set! success #t)
-	     (set! setup #t))
-	   success))
-	((file-exists? source)
-	 (onerror
-	     (begin
-	       (set! brico.db (usedb source use-opts))
-	       (set! success #t)
-	       (set! setup #t))
-	     (lambda (ex)
-	       (logwarn |BadBrico| 
-		 "Couldn't use BRICOSOURCE " source ": "
-		 ex)
-	       #f)))
-	((file-exists? (glom source ".db"))
-	 (set! success (setup-brico (glom source ".db") use-opts)))
-	((or (textmatch `#((isalnum+) "@" ,host-name) source)
-	     (textmatch `#(,host-name ":" (isdigit+)) source))
-	 (onerror
-	     (begin
-	       (set! brico.pool (use-pool source use-opts))
-	       (set! use-indexes (open-index source use-opts))
-	       (set! brico.db (%watch `#[%pools ,brico.pool %indexes ,use-indexes opts ,use-opts]))
-	       (set! success #t)
-	       (set! setup #t))
-	     (lambda (ex)
-	       (logwarn |BadBrico| 
-		 "Couldn't use BRICOSOURCE " source ": "
-		 ex)
-	       #f))))
-  (unless success
-    (logwarn |BricoSource| "Setup failed: " source))
-  (when (and success setup)
-    (unless (exists? (getpool @1/3000000)) (set! brico.reduced #t))
-    (set! bricosource source)
-    (set! brico.indexes (if brico.db (get brico.db '%indexes) use-indexes))
-    (set! brico.index 
-      (if (singleton? brico.indexes)
-	  brico.indexes
-	  (make-aggregate-index brico.indexes #[register #t])))
-    (set! brico-index brico.index)
-    (set! brico.pool (name->pool "brico.framerd.org"))
-    (set! brico-pool brico.pool)
-    (unless brico.reduced
-      (set! xbrico-pool (name->pool "xbrico.beingmeta.com"))
-      (set! names-pool (name->pool "namedb.beingmeta.com"))
-      (set! places-pool (name->pool "placedb.beingmeta.com"))
-      (set! xbrico.pool xbrico-pool)
-      (set! names.pool names-pool)
-      (set! places.pool places-pool))
-    (set! brico-dir 
-      (and (not (textsearch #/:@/ (pool-source brico-pool)))
-	   (dirname (pool-source brico-pool))))
-    (let ((pools (get brico.db '%pools)))
-      (set! wordnet.adjunct
-	(try (pick pools (lambda (p) (dbctl p 'metadata 'adjunct)) '%wordnet) #f))
-      (when wordnet.adjunct (use-adjunct wordnet.adjunct '%wordnet brico.pool))
-      (set! attic.adjunct
-	(try (pick pools (lambda (p) (dbctl p 'metadata 'adjunct)) '%attic) #f))
-      (when attic.adjunct (use-adjunct attic.adjunct '%attic brico.pool)))
-    (let ((indexes (get brico.db '%indexes)))
-      (set! en.index (try (pick indexes get-keyslot @1/2c1c7"English") #f))
-      (set! en_norms.index (try (pick indexes get-keyslot @1/44896"Common English") #f))
-      (set! names.index (try (pick indexes get-keyslot 'names) #f))
-      (let ((sourced  (pick indexes index-source)))
-	(set! core.index (pick sourced index-source has-suffix "/core.index"))
-	(set! wikidref.index (pick sourced index-source has-suffix "/wikidref.index"))
-	(set! wordnet.index (pick sourced index-source has-suffix "/wordnet.index"))
-	(set! lattice.index (pick sourced index-source has-suffix "/lattice.index"))
-	(set! termlogic.index (pick sourced index-source has-suffix "/termlogic.index")))))
-  success)
-
-(define bricosource-config
-  (slambda (var (val 'unbound))
-    (cond ((eq? val 'unbound) bricosource)
-	  ((equal? val bricosource)
-	   bricosource)
-	  ((and (exists? brico-pool) brico-pool
-		(equal? val (pool-source brico-pool))))
-	  ((and (exists? brico-pool) brico-pool)
-	   (logwarn |Brico| "Redundant BRICO configuration "
-		    "from " val " \&mdash; "
-		    "BRICO is already provided from "
-		    (pool-source brico-pool))
-	   #f)
-	  (else (setup-brico val)))))
-(config-def! 'bricosource bricosource-config)
+(defambda (pick-indexes indexes slots)
+  (filter-choices (index indexes)
+    (if (dbctl index 'keyslot)
+	(overlaps? (dbctl index 'keyslot) slots)
+	(and (dbctl index 'slots)
+	     (exists? (intersection (elts (dbctl index 'slots)) slots))))))
 
 (define (config-absfreqs var (val))
   (cond ((not (bound? val)) absfreqs)
@@ -308,6 +134,9 @@
 (define english-gloss @1/2ffbd"Gloss (English)")
 (define english-norm @1/44896)
 (define spanish @1/2c1fc"Spanish")
+(define spanish-norms @1/448cb"Common Spanish")
+(define spanish-aliases @1/2ace7"Aliases in Spanish")
+(define spanish-glosses @1/32cd2"Gloss (Spanish)")
 (define french @1/2c122"French")
 
 (define wordnet-source @1/0"WordNet 1.6 Copyright 1997 by Princeton University.  All rights reserved.")
@@ -821,7 +650,7 @@
 
 (module-export!
  '{brico-pool
-   brico-index brico.db brico-dir
+   brico-index brico.db
    xbrico-pool names-pool places-pool
    brico.pool brico.index brico.indexes
    xbrico.pool names.pool places.pool
@@ -869,6 +698,31 @@
    make%id!
    cap%wds cap%frame! low%wds low%frame!
    assign-isa assign-genls})
+
+;;;; Setup config
+
+(define (setup-brico pool (opts #f))
+  (and (pool? pool) (equal? (pool-base pool) @1/0)
+       (let ((indexes (pool/getindexes pool)))
+	 (lognotice |BricoConfig| pool)
+	 (set! brico.pool pool)
+	 (set! brico.index (pool/getindex pool))
+	 (set! wikidref.index (pick-indexes indexes 'wikidref))
+	 (set! en.index (pick-indexes indexes en))
+	 (set! en_norms.index (pick-indexes indexes en_norms))
+	 (set! en_aliases.index (pick-indexes indexes en_aliases))
+	 (set! words.index (pick-indexes indexes spanish))
+	 (set! norms.index (pick-indexes indexes spanish-norms))
+	 (set! aliases.index (pick-indexes indexes spanish-aliases))
+	 (set! brico.source (pool-source pool))
+	 pool)))
+
+(propconfig! brico:background brico.opts 'background)
+(propconfig! brico:readonly brico.opts 'readonly)
+
+(define-init bricosource-configfn (knodb/configfn setup-brico brico.opts))
+(config-def! 'bricosource bricosource-configfn)
+(config-def! 'brico:source bricosource-configfn)
 
 ;;;; For the compiler/optimizer
 
