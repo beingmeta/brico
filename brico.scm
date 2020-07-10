@@ -540,7 +540,7 @@
 (define use-wordforms #t)
 
 (define (wordform-concept-frequency concept language term)
-  (and use-wordforms (in-pool? concept brico-pool) (eq? language english)
+  (and use-wordforms (in-pool? concept brico.pool) (eq? language english)
        (try (tryif term
 		   (get (?? 'of concept 'word term 'language language) 'freq))
 	    (reduce-choice + (?? 'of concept) 0 'freq)
@@ -563,9 +563,9 @@
 (defambda (concept-frequency-prefetch concepts language words)
   (??/prefetch! (pick (elts (map second freqfns)) oid?) concepts)
   (when (and use-wordforms (eq? language english) (exists? words))
-    (parallel (??/prefetch! 'of (pick concepts brico-pool))
+    (parallel (??/prefetch! 'of (pick concepts brico.pool))
 	      (??/prefetch! 'word words)))
-  (prefetch-oids! (?? 'of (pick concepts brico-pool)
+  (prefetch-oids! (?? 'of (pick concepts brico.pool)
 		      'word words)))
 
 ;;; Configuring freqfns
@@ -649,9 +649,9 @@
 ;;; EXPORTS
 
 (module-export!
- '{brico-pool
-   brico-index brico.db
-   xbrico-pool names-pool places-pool
+ '{brico.pool
+   brico.index brico.db
+   xbrico.pool names-pool places-pool
    brico.pool brico.index brico.indexes
    xbrico.pool names.pool places.pool
    absfreqs getabsfreq
