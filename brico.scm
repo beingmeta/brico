@@ -60,10 +60,11 @@
 
 (defambda (pick-indexes indexes slots)
   (filter-choices (index indexes)
-    (if (dbctl index 'keyslot)
-	(overlaps? (dbctl index 'keyslot) slots)
-	(and (dbctl index 'slots)
-	     (exists? (intersection (elts (dbctl index 'slots)) slots))))))
+    (and (index? index)
+	 (if (dbctl index 'keyslot)
+	     (overlaps? (dbctl index 'keyslot) slots)
+	     (and (dbctl index 'slots)
+		  (exists? (intersection (elts (dbctl index 'slots)) slots)))))))
 
 (define (config-absfreqs var (val))
   (cond ((not (bound? val)) absfreqs)
@@ -708,6 +709,7 @@
 	 (set! brico.pool pool)
 	 (set! brico.index (pool/getindex pool))
 	 (set! wikidref.index (pick-indexes indexes 'wikidref))
+	 (set! core.index (pick indexes index-source has-suffix "core.index"))
 	 (set! en.index (pick-indexes indexes en))
 	 (set! en_norms.index (pick-indexes indexes en_norms))
 	 (set! en_aliases.index (pick-indexes indexes en_aliases))
