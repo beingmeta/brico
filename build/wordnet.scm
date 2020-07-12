@@ -50,10 +50,11 @@
 (define wordnet.index #f)
 (define wordforms.index #f)
 
-(when brico-dir
-  (set! core.index (open-index (mkpath brico-dir "core.index")))
-  (set! wordnet.index (open-index (mkpath brico-dir "wordnet.index")))
-  (set! wordforms.index wordnet.index))
+(when (and brico.pool (file-exists? (pool-source brico.pool)))
+  (let ((brico-dir (dirname (pool-source brico.pool))))
+    (set! core.index (open-index (mkpath brico-dir "core.index")))
+    (set! wordnet.index (open-index (mkpath brico-dir "wordnet.index")))
+    (set! wordforms.index wordnet.index)))
 
 ;;; Reading WordNet sense indexes (index.sense)
 
