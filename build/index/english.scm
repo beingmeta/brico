@@ -17,7 +17,7 @@
 (defambda (index-english f (batch-state #f))
   (prefetch-oids! f)
   (let* ((loop-state (get batch-state 'loop))
-	 (core.index (getopt loop-state 'words.index))
+	 (core.index (getopt loop-state 'core.index))
 	 (words.index (getopt loop-state 'words.index))
 	 (frags.index (getopt loop-state 'frags.index))
 	 (norms.index  (getopt loop-state 'norms.index))
@@ -64,8 +64,8 @@
   (config! 'appid "indexenglish")
   (when (config 'optimize #t)
     (optimize! '{engine brico brico/indexing brico/lookup}))
-  (dbctl core.index 'readonly #f)
   (let* ((pools (use-pool (try (elts names) brico-pool-names)))
+	 (nconcepts (max (reduce-choice pools + 0 pool-load) #mib))
 	 (core.index (target-index "core.index" #f pools))
 	 (words.index (target-index "en.index" [keyslot english] pools))
 	 (frags.index (target-index "en_frags.index" [keyslot frags] pools))
@@ -77,6 +77,7 @@
 	 (names.index (target-index "en_names.index" #[keyslot names] pools))
 	 (other.index (target-index "en_other.index" #f pools))
 	 (oids (difference (pool-elts pools) (?? 'source @1/1) (?? 'status 'deleted))))
+    (dbctl (pool/getindexes pools) 'readonly #f)
     (engine/run index-english oids
       `#[loop #[core.index ,core.index
 		words.index ,words.index 

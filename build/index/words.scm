@@ -76,8 +76,8 @@
   (config! 'appid "indexwords")
   (when (config 'optimize #t)
     (optimize! '{engine brico brico/indexing brico/lookup}))
-  (dbctl core.index 'readonly #f)
   (let* ((pools (knodb/ref (try (elts names) brico-pool-names)))
+	 (nconcepts (max (reduce-choice pools + 0 pool-load) #mib))
 	 (core.index (target-index "core.index" #f pools))
 	 (words.index (target-index "words.index" #f pools))
 	 (frags.index (target-index "frags.index" #f pools))
@@ -87,6 +87,7 @@
 	 (aliases.index (target-index "aliases.index" #f pools))
 	 (names.index (target-index "names.index" #f pools))
 	 (oids (difference (pool-elts pools) (?? 'source @1/1) (?? 'status 'deleted))))
+    (dbctl (pool/getindexes pools) 'readonly #f)
     (drop! core.index (cons 'has lexslots))
     (engine/run index-words oids
       `#[loop #[core.index ,core.index
