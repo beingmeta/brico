@@ -4,12 +4,13 @@
 (in-module 'brico/build/wikidmap)
 
 (use-module '{logger webtools varconfig libarchive texttools stringfmts})
+(use-module '{defmacro optimize})
 (use-module '{knodb knodb/branches knodb/typeindex knodb/flexindex})
 (use-module '{brico brico/indexing brico/wikid brico/build/wikidata})
 
 (module-export! '{wikidata->brico wikid/brico wikid/src
 		  wikidmap wikidmatch wikid/getmap wikidmap!
-		  wikid/import!
+		  wikid/import! wikid/copy! wikid/update!
 		  wikidata/import/enginefn})
 
 (define %loglevel %notice%)
@@ -128,17 +129,18 @@
       (store! brico '%glosses glosses)
       (add! brico 'words (get wds 'en))
       (add! brico 'norms (get norms 'en))
-      (do-choices (lang langs)
-	(let ((addwds (difference (get wds lang) (get cur-wds lang))))
-	  (when (exists? addwds)
-	    (index-string wikid.index brico 
-			  (get language-map (downcase lang))
-	      {addwds (downcase addwds)})))
-	(let ((addnorms (difference (get norms lang) (get cur-norms lang))))
-	  (when (exists? addnorms)
-	    (index-string wikid.index brico 
-	      (get norm-map (downcase lang))
-	      addnorms)))))))
+      (when index
+	(do-choices (lang langs)
+	  (let ((addwds (difference (get wds lang) (get cur-wds lang))))
+	    (when (exists? addwds)
+	      (index-string wikid.index brico 
+			    (get language-map (downcase lang))
+			    {addwds (downcase addwds)})))
+	  (let ((addnorms (difference (get norms lang) (get cur-norms lang))))
+	    (when (exists? addnorms)
+	      (index-string wikid.index brico 
+			    (get norm-map (downcase lang))
+			    addnorms))))))))
 
 (define import-slotids
   [@1/2c27e{isa} {@1/1f("instance of" wikid "P31")
@@ -165,7 +167,7 @@
   (cond ((index? opts) (set! index opts) (set! opts #f))
 	(else (default! index (getopt opts 'index))))
   (copy-lexslots wikid frame index opts)
-  (index-core index frame)
+  (when index (index-core index frame))
   (do-choices (prop (pickoids (getkeys wikid)))
     (let* ((wikidvals (get wikid prop))
 	   (refvals (pickoids wikidvals))
@@ -179,7 +181,7 @@
       (add! frame prop toadd)
       (drop! frame prop todrop)
       (set+! unmapped (get (reject refvals wikidmap) 'id))
-      (when (and (exists? toadd) (exists? refvals))
+      (when (and index (exists? toadd) (exists? refvals))
 	(index-frame index frame prop (pickoids toadd)))))
   (do-choices (import (getkeys import-slotids))
     (let* ((cur (get frame import))
@@ -188,8 +190,8 @@
 	   (drop (difference cur new)))
       (add! frame import add)
       (drop! frame import drop)
-      (index-frame index frame import add)))
-  (when (exists? unmapped)
+      (when index (index-frame index frame import add))))
+  (when (and index (exists? unmapped))
     (index-frame index frame 'pending unmapped))
   (when template
     (do-choices (key (getkeys template))
@@ -199,18 +201,27 @@
 	     (drop (difference cur new)))
 	(add! frame key add)
 	(drop! frame key drop)
-	(index-frame wikid.index frame key add))))
-  (adjust-pending index wikid frame)
-  (adjust-pending wikid.index wikid frame)
-  (adjust-pending brico.index wikid frame)
+	(when index (index-frame wikid.index frame key add)))))
+  (when index
+    (adjust-pending index wikid frame)
+    (adjust-pending wikid.index wikid frame)
+    (adjust-pending brico.index wikid frame))
   (cond ((%test frame 'sensecat))
 	((%test frame @?genls)
 	 (add! frame 'type (get (%get frame @?genls) 'type))
 	 (add! frame 'sensecat (get (%get frame @?genls) 'sensecat))
-	 (index-frame index frame '{sensecat type})))
-  (index-lattice index frame)
-  (index-relations index frame)
-  (index-analytics index frame))
+	 (when index (index-frame index frame '{sensecat type}))))
+  (when index
+    (index-lattice index frame)
+    (index-relations index frame)
+    (index-analytics index frame)))
+
+(define (wikid/update! frame (index #f) (opts #f))
+  (let* ((wikidref (get frame 'wikidref))
+	 (wf (wikid/ref wikidref)))
+    (if (fail? wf)
+	"No mapping"
+	(wikid/copy! wf frame #f index))))
 
 (defambda (adjust-pending index wikid frame)
   (let ((adjust (find-frames index 'pending wikid)))
