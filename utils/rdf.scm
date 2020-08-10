@@ -1,6 +1,6 @@
 ;;; -*- Mode: Scheme; Character-encoding: utf-8;  -*-
 
-(in-module 'brico/rdf)
+(in-module 'brico/utils/rdf)
 
 (use-module '{webtools xhtml xhtml/brico texttools reflection domutils})
 (use-module '{brico brico/lookup brico/dterms})
