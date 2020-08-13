@@ -7,7 +7,7 @@
   (when done (commit) (clearcaches))
   (unless done (index-lattice/prefetch (qc oids))))
 
-(define brico-pools (choice brico-pool xbrico-pool names-pool places-pool))
+(define brico-pools (choice brico.pool))
 (define normal-slots (?? 'type 'slot))
 
 (define relterm-slotids

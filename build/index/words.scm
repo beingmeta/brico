@@ -77,7 +77,7 @@
   (when (config 'optimize #t)
     (optimize! '{engine brico brico/indexing brico/lookup}))
   (let* ((pools (knodb/ref (try (elts names) brico-pool-names)))
-	 (nconcepts (max (reduce-choice pools + 0 pool-load) #mib))
+	 (nconcepts (max (reduce-choice + pools 0 pool-load) #mib))
 	 (core.index (target-index "core.index" #f pools))
 	 (words.index (target-index "words.index" #f pools))
 	 (frags.index (target-index "frags.index" #f pools))

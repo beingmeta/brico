@@ -65,7 +65,7 @@
   (when (config 'optimize #t)
     (optimize! '{engine brico brico/indexing brico/lookup}))
   (let* ((pools (use-pool (try (elts names) brico-pool-names)))
-	 (nconcepts (max (reduce-choice pools + 0 pool-load) #mib))
+	 (nconcepts (max (reduce-choice + pools 0 pool-load) #mib))
 	 (core.index (target-index "core.index" #f pools))
 	 (words.index (target-index "en.index" [keyslot english] pools))
 	 (frags.index (target-index "en_frags.index" [keyslot frags] pools))
