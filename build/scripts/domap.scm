@@ -64,6 +64,29 @@
 	    (do-choices (item items)
 	      (import-by-isa item wf bf opts))))))) 
 
+(define (import-by-genls item wf bf (opts #f))
+  (let* ((gspec [@?genls bf])
+	 (g2spec [@?genls* bf])
+	 (g3spec [@?genls* (get bf @?genls)])
+	 (known (?? 'wikidref (get item 'id)))
+	 (candidates (try known 
+			  (wikid/getmap item gspec (opt+ opts 'lower #t))
+			  (wikid/getmap item g2spec (opt+ opts 'lower #t))
+			  (wikid/getmap item g3spec (opt+ opts 'lower #t)))))
+    (cond ((exists? known))
+	  ((singleton? candidates)
+	   (logwarn |WikidMap| "Found new map for " item "\n   to " candidates))
+	  ((and (fail? candidates) (getopt opts 'import #t))
+	   (logwarn |WikidImport| 
+	     "Imported " item "\n   into "
+	     (wikid/import! item [lower #t] #f
+			    [@?genls bf sensecat (get bf 'sensecat)])))
+	  ((ambiguous? candidates)
+	   (logwarn |Wikidmap| 
+	     "Ambiguous wikidata item " item
+	     (do-choices (c candidates)
+	       (printout "\n\t" c)))))))
+
 (define (import-dogs)
  (import-isa-type 
   @31c1/3c0f(wikidata "Q39367" norm "dog breed" 
@@ -145,7 +168,7 @@
   (wikid/import! @31c1/1454(wikidata "Q10798782" norm "television actor")
 		 [pool brico.pool]))
 
-(define (import-attorneys)
+(define (import-lawyers)
   (import-occupation
    @31c1/1d(wikidata "Q40348" norm "lawyer" gloss "legal professional who helps clients and represents them in a court of law") 
    @1/1fef6(noun.person "attorney" genls "professional person")))
@@ -226,6 +249,40 @@
       (import-occupation occupation)
       (write-xtype occupation (extend-byte-output "occupations.xtype"))
       (logwarn |Occupation| "Finished importing " occupation))))
+
+(define wikidata-war 
+  @31c1/2b1e(wikidata "Q198" norm "war" gloss "organised and prolonged violent conflict between states"))
+(define brico-war @1/1539f(noun.act "war" genls "crusade"))
+(define war-types
+  (filter-choices (f (find-frames wikidata.index @?wikid_genls wikidata-war))
+    (exists? (find-frames wikidata.index @?wikid_isa f))))
+
+(define wikidata-battle
+  @31c1/461d(wikidata "Q178561" norm "battle" gloss "part of a war which is well defined in duration, area and force commitment"))
+(define brico-battle (?? 'wikidref "Q178561"))
+(define battle-types
+  (filter-choices (f (find-frames wikidata.index @?wikid_genls wikidata-battle))
+    (exists? (find-frames wikidata.index @?wikid_isa f))))
+
+(define wikidata-treaty-maps
+  [@31c1/20759(wikidata "Q321839" norm "accord" gloss "agreement between two or more contracting persons or parties")
+   @1/22fc1(noun.state "agreement" "accord")
+   @31c1/15464(wikidata "Q131569" norm "treaty" gloss "express agreement under international law entered into by actors in international law")
+   @1/1c7dc(noun.communication "treaty" genls "written agreement")])
+
+(define (import-war-and-peace)
+  (when (fail? brico-battle)
+    (wikidmap! @1/155fe(noun.act "engagement" "conflict" "battle" "fight")
+	       wikidata-battle)
+    (set! brico-battle @1/155fe(noun.act "engagement" "conflict" "battle" "fight")))
+  (import-by-genls war-types wikidata-war brico-war)
+  (import-by-genls battle-types wikidata-battle brico-battle)
+  (do-choices (type {war-types battle-types})
+    (import-isa-type type (wikid/brico type) [lower #f]))
+  (do-choices (wf (getkeys wikidata-treaty-maps))
+    (wikidmap! (get wikidata-treaty-maps wf) wf))
+  (do-choices (wf (getkeys wikidata-treaty-maps))
+    (import-isa-type wf (get wikidata-treaty-maps wf) [lower #f])))
 
 (optimize!)
 
