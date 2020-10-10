@@ -78,7 +78,7 @@
 		  (write  (glom filename ".bak")))
 		(move-file filename (glom filename ".bak")))
 	      (make-index filename
-		`(#[type hashindex size ,size keyslot ,keyslot] . ,opts))
+		`(#[type kindex size ,size keyslot ,keyslot] . ,opts))
 	      (lognotice |NewIndex| "Making new file index " filename)
 	      (writable-index filename
 			      `(#[register ,(getopt opts 'register #t)]
