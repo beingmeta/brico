@@ -81,21 +81,21 @@
 ;;; Common tables
 
 (define-init all-languages 
-  (file->dtype (get-component "data/languages.dtype")))
+  (read-xtype (get-component "data/languages.xtype")))
 (define-init language-map
-  (file->dtype (get-component "data/langmap.table")))
+  (read-xtype (get-component "data/langmap.table")))
 (define-init norm-map
-  (file->dtype (get-component "data/normmap.table")))
+  (read-xtype (get-component "data/normmap.table")))
 (define-init alias-map
-  (file->dtype (get-component "data/aliasmap.table")))
+  (read-xtype (get-component "data/aliasmap.table")))
 (define-init gloss-map
-  (file->dtype (get-component "data/glossmap.table")))
+  (read-xtype (get-component "data/glossmap.table")))
 (define-init indicator-map
-  (file->dtype (get-component "data/indicatormap.table")))
+  (read-xtype (get-component "data/indicatormap.table")))
 (define-init frag-map
-  (file->dtype (get-component "data/fragmap.table")))
+  (read-xtype (get-component "data/fragmap.table")))
 (define-init ids-table
-  (file->dtype (get-component "data/ids.table")))
+  (read-xtype (get-component "data/ids.table")))
 
 (define index-map indicator-map)
 
@@ -104,9 +104,9 @@
 (define-init all-glosses (get gloss-map (getkeys gloss-map)))
 
 (define-init builtin-index
-  (let ((tempindex (make-index "BRICOIDS" #[type tempindex register #t])))
+  (let ((tempindex (make-index "BRICOIDS" #[type tempindex register #t keyslot %id])))
     (do-choices (id (getkeys ids-table))
-      (add! tempindex (cons '%id id) (get ids-table id)))
+      (add! tempindex id (get ids-table id)))
     (when (config 'BRICO:BUILTINS #t config:boolean)
       (use-index tempindex))
     tempindex))
@@ -124,6 +124,28 @@
    (store! indicator-map (get l 'key) l))
  (do-choices (l (?? 'type 'fragments))
    (store! frag-map (get l 'key) l)))
+
+;;; Building the idtable
+
+(define (get-idtable (core.index core.index) (table (make-hashtable)))
+  (do-choices (mkeys (pick (getkeys core.index) '%mnemonics))
+    (do-choices (f (get core.index mkeys))
+      (let ((ids (picksyms (get f '%mnemonics))))
+	(do-choices (id ids)
+	  (when (and (string? id) (position #\; id))
+	    (set+! ids (trim-spaces (elts (segment id ";"))))))
+	(add! table ids f)
+	(add! table (downcase ids) f))))
+  (do-choices (key (getkeys table))
+    (when (ambiguous? (get table key))
+      (logwarn |AmbiguousID|
+	(write key) " maps to "
+	(do-choices (v (get table key))
+	  (printout "\n\t" v)))
+      (if (singleton? (reject (get table key) 'type 'lexslot))
+	  (store! table key (reject (get table key) 'type 'lexslot))
+	  (drop! table key))))
+  table)
 
 ;;; Common BRICO frames
 

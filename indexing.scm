@@ -505,14 +505,6 @@
   (prefetch-expansions
    (qc oids) (qc genls partof memberof ingredientof)))
 
-;;; Building the idtable
-
-(define (get-idkeys (core.index core.index))
-  (for-choices (mkeys (pick (pick (getkeys core.index) '%mnemonics) cdr symbol?))
-    (for-choices (f (get core.index mkeys))
-      (tryif (not (test f 'type '{fragments indices}))
-	(cons f (pick (get f '%mnemonics) symbol?))))))
-
 ;;; EXPORTS
 
 ;;; These are helpful for indexing data BRICO-style or indexing
