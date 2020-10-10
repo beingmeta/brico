@@ -438,7 +438,8 @@
 ;;; Top level wrappers
 
 (define (brico/resolve term (language default-language) (tryhard 2))
-  (cdr ((or remote-lookup-term lookup-term) term language tryhard)))
+  (let ((v ((or remote-lookup-term lookup-term) term language tryhard)))
+    (if (pair? v) (cdr v) v)))
 
 (define ref-default-opts #[tryhard 2 sumthresh 0.03])
 
