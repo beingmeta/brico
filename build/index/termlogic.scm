@@ -26,29 +26,33 @@
       (index-frame* indexes concept always always /always)
       (index-frame indexes concept always (list (get concept always)))
       ;; indexes the inverse relationship
-      (index-frame indexes concept /always (%get concept /always))
+      (index-frame indexes concept /always (%get concept always))
       (index-frame indexes concept /always (list (get concept /always)))
       ;; This is for cross-domain relationships
       (index-frame indexes (%get concept /always) always concept)
       ;; ALWAYS implies sometimes
       ;; but can also compute it at search time
       ;; (index-frame* indexes concept always sometimes sometimes)
-      ;; SOMETIMES is symmetric
-      (index-frame indexes concept sometimes)
-      (index-frame indexes (get concept sometimes) sometimes concept)
-      (index-frame indexes concept (list (get concept sometimes)))
-      ;; NEVER is symmetric
-      (index-frame indexes concept never)
-      (index-frame indexes (get concept never) never concept)
-      (index-frame indexes concept never (list (get concept never)))
-      ;; SOMENOT is not symmetric
-      (index-frame indexes concept somenot)
-      (index-frame indexes (get concept somenot) /somenot concept)
-      (index-frame indexes concept somenot (list (get concept somenot)))
-      ;; indexes the inverse relationship
-      (index-frame indexes concept /somenot (%get concept /somenot))
-      (index-frame indexes concept /somenot (list (%get concept /somenot)))
-      (index-frame indexes (%get concept /somenot) somenot concept)
+      (let ((somevals (get concept sometimes))
+	    (somenotvals (get concept somenot))
+	    (/somenotvals (%get concept /somenot))
+	    (nevervals (get concept never)))
+	;; SOMETIMES is symmetric
+	(index-frame indexes concept sometimes somevals)
+	(index-frame indexes somevals sometimes concept)
+	(index-frame indexes concept sometimes (list somevals))
+	;; NEVER is symmetric
+	(index-frame indexes concept never nevervals)
+	(index-frame indexes nevervals never concept)
+	(index-frame indexes concept never (list nevervals))
+	;; SOMENOT is not symmetric
+	(index-frame indexes concept somenot somenotvals)
+	(index-frame indexes somenotvals /somenot concept)
+	(index-frame indexes concept somenot (list somenotvals))
+	;; indexes the inverse relationship
+	(index-frame indexes concept /somenot /somenotvals)
+	(index-frame indexes /somenotvals somenot concept)
+	(index-frame indexes concept /somenot (list /somnotvals)))
       ;; indexes probablistic slots
       (index-frame indexes concept commonly)
       (index-frame indexes concept /commonly (%get concept /commonly))
