@@ -666,7 +666,7 @@
   (let* ((sensecat (get concept 'sense-category))
 	 (seen (make-hashset))
 	 (opts `#[limit 7 hide ,seen seen ,seen]))
-    (div (class "conceptsummary")
+    (div ((class "conceptsummary") (oid (oid->string concept)))
       (p* ((class "head") (title "Examine this concept"))
 	(let ((shown {})
 	      (all (get concept (choice language languages))))
