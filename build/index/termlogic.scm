@@ -52,7 +52,7 @@
 	;; indexes the inverse relationship
 	(index-frame indexes concept /somenot /somenotvals)
 	(index-frame indexes /somenotvals somenot concept)
-	(index-frame indexes concept /somenot (list /somnotvals)))
+	(index-frame indexes concept /somenot (list /somenotvals)))
       ;; indexes probablistic slots
       (index-frame indexes concept commonly)
       (index-frame indexes concept /commonly (%get concept /commonly))
