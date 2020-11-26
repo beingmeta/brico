@@ -69,33 +69,33 @@
 
   (when wikidata-build
     (set! buildmap.table
-      (knodb/make (mkpath dir "wikids.table") [indextype 'memindex create #t])))
+      (knodb/make (mkpath dir "wikids.table") [indextype 'logindex create #t])))
 
   (set! wikids.index
     (flex/open-index (mkpath dir "wikids.flexindex")
-		     [indextype 'hashindex size (* 8 1024 1024) create #t
+		     [indextype 'kindex size (* 8 1024 1024) create #t
 		      readonly (not (config 'wikidata:build))
 		      keyslot 'id register #t
 		      maxkeys (* 4 1024 1024)]))
 
   (set! words.index
     (flex/open-index (mkpath dir "words.flexindex")
-		     [indextype 'hashindex size (* 4 1024 1024) create #t
+		     [indextype 'kindex size (* 4 1024 1024) create #t
 		      readonly (not (config 'wikidata:build))
 		      keyslot 'words register #t
 		      maxkeys (* 2 1024 1024)]))
   (set! norms.index
     (flex/open-index (mkpath dir "norms.flexindex")
-		     [indextype 'hashindex size (* 4 1024 1024) create #t
+		     [indextype 'kindex size (* 4 1024 1024) create #t
 		      readonly (not (config 'wikidata:build))
 		      keyslot 'norms register #t
 		      maxkeys (* 2 1024 1024)]))
   (set! has.index
     (knodb/make (mkpath dir "hasprops.index")
-		[indextype 'hashindex create #t keyslot 'has register #t]))
+		[indextype 'kindex create #t keyslot 'has register #t]))
   (set! props.index
     (flex/open-index (mkpath dir "props.flexindex")
-		     [indextype 'hashindex size (* 4 1024 1024) create #t
+		     [indextype 'kindex size (* 4 1024 1024) create #t
 		      readonly (not (config 'wikidata:build))
 		      register #t maxkeys (* 2 1024 1024)]))
   (set! wikidata.index
@@ -123,8 +123,8 @@
 	  ((not wikidata.dir) (error |NoWikidataConfigured|))
 	  (wikidata-build wikidata-build)
 	  (else (set! buildmap.table
-		  (knodb/make (mkpath wikidata.dir "wikids.table")
-			      [indextype 'memindex create #t]))
+		  (knodb/make (mkpath wikidata.dir "wikids.logindex")
+			      [indextype 'logindex create #t]))
 		(set! wikidata-build #t)))))
 
 (define (wikidata/save!)

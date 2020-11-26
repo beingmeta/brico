@@ -127,8 +127,8 @@
       (store! brico '%words wds)
       (store! brico '%norms norms)
       (store! brico '%glosses glosses)
-      (add! brico 'words (get wds 'en))
-      (add! brico 'norms (get norms 'en))
+      ;; (add! brico 'words (get wds 'en))
+      ;; (add! brico 'norms (get norms 'en))
       (when index
 	(do-choices (lang langs)
 	  (let ((addwds (difference (get wds lang) (get cur-wds lang))))

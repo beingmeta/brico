@@ -726,10 +726,10 @@
 
 (define (setup-brico pool (opts #f))
   (and (pool? pool) (equal? (pool-base pool) @1/0)
-       (let ((indexes (pool/getindexes pool)))
+       (let ((indexes (pool/getindexes pool opts)))
 	 (lognotice |BricoConfig| pool)
 	 (set! brico.pool pool)
-	 (set! brico.index (pool/getindex pool))
+	 (set! brico.index (pool/getindex pool opts))
 	 (set! wikidref.index (pick-indexes indexes 'wikidref))
 	 (set! core.index (pick indexes index-source has-suffix "core.index"))
 	 (set! en.index (pick-indexes indexes en))

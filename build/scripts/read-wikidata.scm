@@ -106,6 +106,7 @@
 (define (import-wikid-item item index has.index)
   (let* ((id (get item 'id))
 	 (ref (get-wikidref id)))
+    (info%watch "IMPORT-WIKID-ITEM" id ref)
     (store! ref 'wikitype (string->symbol (get item 'type)))
     (unless (test ref 'lastrevid (get item 'lastrevid))
       (store! ref 'lastrevid (get item 'lastrevid))
@@ -232,10 +233,12 @@
 		 (secs->string (elapsed-time started)))
       (filestream/log! in '(overall)))
     (checkpoint in)
-    (unless (or (file-exists? "read-wikidata.stop") (filestream/done? in))
-      (if chain
-	  (chain file secs cycles threadcount)
-	  (logcrit |NoChain| "Just exiting")))))
+    (if (or (config 'nochain #f) (unbound? chain) (not (applicable? chain)))
+	(logwarn |NoChain| "Just exiting")
+	(unless (or (file-exists? "read-wikidata.stop") (filestream/done? in))
+	  (if chain
+	      (chain file secs cycles threadcount)
+	      (logcrit |NoChain| "Just exiting"))))))
   
 (when (config 'optimized #t)
   (optimize! '{knodb knodb/flexpool knodb/adjuncts 
