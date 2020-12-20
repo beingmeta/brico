@@ -1,10 +1,10 @@
 ;;; -*- Mode: Scheme; Character-encoding: utf-8; -*-
-;;; Copyright (C) 2005-2019 beingmeta, inc.  All rights reserved.
+;;; Copyright (C) 2005-2020 beingmeta, inc.  All rights reserved.
 
 (in-module 'brico/build/wikidata)
 
 (use-module '{logger webtools varconfig libarchive texttools
-	      brico stringfmts})
+	      brico text/stringfmts})
 (use-module '{knodb knodb/branches knodb/typeindex 
 	      knodb/flexindex})
 
@@ -59,7 +59,7 @@
     (knodb/make (mkpath dir "wikidata.flexpool")
 		[create #t type 'flexpool
 		 base @31c1/0 capacity (* 128 1024 1024)
-		 partsize (* 1024 1024) pooltypek 'bigpool
+		 partsize (* 1024 1024) pooltypek 'kpool
 		 prefix "pools/"
 		 adjuncts #[labels #[pool "labels"]
 			    aliases #[pool "aliases"]

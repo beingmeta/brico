@@ -2,7 +2,7 @@
 ;;; -*- Mode: Scheme; -*-
 
 (config! 'cachelevel 2)
-(use-module '{optimize mttools morph morph/en})
+(use-module '{optimize kno/mttools morph morph/en})
 (load "brico.scm")
 (use-module 'audit)
 
@@ -221,7 +221,7 @@
 
 ;; (define (main) (isolate-pool brico.pool))
 
-(optimize! 'mttools 'brico 'brico/indexing 'audit)
+(optimize! 'kno/mttools 'brico 'brico/indexing 'audit)
 (optimize! 'morph 'morph/en 'morph/es 'morph/fr)
 (optimize!)
 

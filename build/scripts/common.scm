@@ -1,6 +1,6 @@
 ;;; -*- Mode: Scheme; -*-
 
-(use-module '{logger varconfig fifo engine knodb stringfmts ezrecords})
+(use-module '{logger varconfig fifo engine knodb text/stringfmts ezrecords})
 (use-module '{knodb knodb/branches})
 
 (config! 'cachelevel 2)
@@ -30,7 +30,7 @@
 (pool/ref (mkpath indir "brico.pool"))
 
 (use-module '{brico brico/indexing})
-(use-module '{brico brico/indexing mttools trackrefs optimize tinygis})
+(use-module '{brico brico/indexing kno/mttools trackrefs optimize tinygis})
 (use-module '{logger varconfig})
 
 (defrecord (langinfo)

@@ -1,9 +1,9 @@
 ;;; -*- Mode: Scheme; Character-encoding: utf-8; -*-
-;;; Copyright (C) 2005-2019 beingmeta, inc.  All rights reserved.
+;;; Copyright (C) 2005-2020 beingmeta, inc.  All rights reserved.
 
 (in-module 'brico/build/initwikid)
 
-(use-module '{texttools reflection logger varconfig stringfmts knodb})
+(use-module '{texttools kno/reflect! logger varconfig text/stringfmts knodb})
 
 (module-export! '{wikid/init!})
 
@@ -73,7 +73,7 @@
 (define (wikid/init source)
   (set! wikid.pool
     (knodb/make (mkpath source "wikid.pool")
-		[create #t type 'bigpool
+		[create #t type 'kpool
 		 base @1/8000000 capacity (* 4 1024 1024)
 		 adjuncts #[%words #[pool "wikid_words"]
 			    %norms #[pool "wikid_norms"]

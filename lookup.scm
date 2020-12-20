@@ -1,5 +1,5 @@
 ;;; -*- Mode: Scheme; Character-encoding: utf-8; -*-
-;;; Copyright (C) 2005-2018 beingmeta, inc.  All rights reserved.
+;;; Copyright (C) 2005-2020 beingmeta, inc.  All rights reserved.
 
 (in-module 'brico/lookup)
 ;;; Looking up terms in BRICO
@@ -8,9 +8,9 @@
 ;;;  natural language terms into BRICO concepts.
 
 (use-module 'brico)
-(use-module '{texttools reflection})
+(use-module '{texttools kno/reflect})
 (use-module '{morph morph/en})
-(use-module '{brico/maprules rulesets varconfig logger})
+(use-module '{brico/maprules kno/rulesets varconfig logger})
 
 (define logger %logger)
 

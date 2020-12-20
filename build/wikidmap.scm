@@ -1,9 +1,9 @@
 ;;; -*- Mode: Scheme; Character-encoding: utf-8; -*-
-;;; Copyright (C) 2005-2019 beingmeta, inc.  All rights reserved.
+;;; Copyright (C) 2005-2020 beingmeta, inc.  All rights reserved.
 
 (in-module 'brico/build/wikidmap)
 
-(use-module '{logger webtools varconfig libarchive texttools stringfmts})
+(use-module '{logger webtools varconfig libarchive texttools text/stringfmts})
 (use-module '{defmacro optimize})
 (use-module '{knodb knodb/branches knodb/typeindex knodb/flexindex})
 (use-module '{brico brico/indexing brico/wikid brico/build/wikidata})
