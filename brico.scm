@@ -1,5 +1,5 @@
 ;; -*- Mode: Scheme; Character-encoding: utf-8; -*-
-;;; Copyright (C) 2005-2018 beingmeta, inc.  All rights reserved.
+;;; Copyright (C) 2005-2020 beingmeta, inc.  All rights reserved.
 
 (in-module 'brico)
 ;;; Using the BRICO database from Kno
@@ -8,7 +8,7 @@
 		   brico.pool brico.index brico.indexes
 		   freqfns use-wordforms})
 
-(use-module '{texttools reflection logger varconfig knodb knodb/config})
+(use-module '{texttools kno/reflect logger varconfig knodb knodb/config binio})
 (use-module 'usedb)
 ;; For custom methods
 (use-module 'rulesets)

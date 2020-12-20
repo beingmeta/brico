@@ -1,9 +1,12 @@
 ;;; -*- Mode: Scheme; Character-encoding: utf-8; -*-
-;;; Copyright (C) 2005-2018 beingmeta, inc.  All rights reserved.
+;;; Copyright (C) 2005-2020 beingmeta, inc.  All rights reserved.
 
 (in-module 'brico/dterms)
 ;;; Computing disambiguated terms (e.g. term+disambig) for human
 ;;; readable concepts
+
+(use-module '{binio})
+(use-module '{brico brico/lookup brico/analytics morph/en})
 
 ;;; FIND-DTERM and friends try to compute dterms using the ontology
 (module-export!
@@ -12,8 +15,6 @@
    get-dterm get-dterm/cached
    cached-dterm/prefetch! find-dterm/prefetch!
    dterm-caches})
-
-(use-module '{brico brico/lookup brico/analytics morph/en})
 
 (define dterm-caches '())
 (define usesumterms #f)

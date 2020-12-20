@@ -1,10 +1,10 @@
 ;;; -*- Mode: Scheme; Character-encoding: utf-8; -*-
-;;; Copyright (C) 2005-2018 beingmeta, inc.  All rights reserved.
+;;; Copyright (C) 2005-2020 beingmeta, inc.  All rights reserved.
 
 (in-module 'brico/build/wordnet)
 
 (use-module '{texttools})
-(use-module '{logger varconfig optimize stringfmts})
+(use-module '{logger varconfig optimize text/stringfmts})
 (use-module '{knodb})
 (use-module '{brico})
 

@@ -8,8 +8,8 @@
   (config! 'wikidata:build #t))
 
 (use-module '{logger webtools varconfig libarchive texttools
-	      filestream brico stringfmts optimize
-	      reflection})
+	      io/filestream brico text/stringfmts optimize
+	      kno/reflect kno/profile})
 (use-module '{knodb knodb/branches knodb/typeindex 
 	      knodb/flexindex})
 (use-module 'brico/build/wikidata)
@@ -243,11 +243,11 @@
 (when (config 'optimized #t)
   (optimize! '{knodb knodb/flexpool knodb/adjuncts 
 	       knodb/branches knodb/typeindex brico brico/indexing
-	       filestream})
+	       io/filestream})
   (logwarn |Optimized| 
     "Modules " '{knodb knodb/flexpool knodb/adjuncts 
 		 knodb/branches knodb/typeindex brico brico/indexing
-		 filestream})
+		 io/filestream})
   (optimize!)
   (logwarn |Optimized| (get-source)))
 

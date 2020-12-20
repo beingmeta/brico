@@ -1,5 +1,5 @@
 (use-module '{texttools})
-(use-module '{logger varconfig optimize stringfmts})
+(use-module '{logger varconfig optimize text/stringfmts})
 
 (config! 'cachelevel 2)
 (config! 'dbloglevel %info%)
