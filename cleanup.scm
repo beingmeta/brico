@@ -8,7 +8,7 @@
 ;;;  natural language terms into BRICO concepts.
 
 (use-module 'brico)
-(use-module '{texttools reflection engine})
+(use-module '{texttools kno/reflect engine})
 (use-module '{varconfig logger})
 
 (module-export! '{brico/cleanup!})

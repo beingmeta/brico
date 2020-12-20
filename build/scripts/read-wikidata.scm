@@ -9,7 +9,7 @@
 
 (use-module '{logger webtools varconfig libarchive texttools
 	      filestream brico stringfmts optimize
-	      reflection})
+	      kno/reflect kno/profile})
 (use-module '{knodb knodb/branches knodb/typeindex 
 	      knodb/flexindex})
 (use-module 'brico/build/wikidata)

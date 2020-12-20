@@ -8,7 +8,7 @@
 		   brico.pool brico.index brico.indexes
 		   freqfns use-wordforms})
 
-(use-module '{texttools reflection logger varconfig knodb knodb/config})
+(use-module '{texttools kno/reflect logger varconfig knodb knodb/config})
 (use-module 'usedb)
 ;; For custom methods
 (use-module 'rulesets)
