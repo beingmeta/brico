@@ -5,6 +5,9 @@
 ;;; Computing disambiguated terms (e.g. term+disambig) for human
 ;;; readable concepts
 
+(use-module '{io/dtypeio io/xtypeio})
+(use-module '{brico brico/lookup brico/analytics morph/en})
+
 ;;; FIND-DTERM and friends try to compute dterms using the ontology
 (module-export!
  '{find-dterm
@@ -12,8 +15,6 @@
    get-dterm get-dterm/cached
    cached-dterm/prefetch! find-dterm/prefetch!
    dterm-caches})
-
-(use-module '{brico brico/lookup brico/analytics morph/en})
 
 (define dterm-caches '())
 (define usesumterms #f)
