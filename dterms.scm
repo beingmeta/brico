@@ -5,7 +5,7 @@
 ;;; Computing disambiguated terms (e.g. term+disambig) for human
 ;;; readable concepts
 
-(use-module '{io/dtypeio io/xtypeio})
+(use-module '{binio})
 (use-module '{brico brico/lookup brico/analytics morph/en})
 
 ;;; FIND-DTERM and friends try to compute dterms using the ontology
