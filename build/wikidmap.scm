@@ -3,7 +3,7 @@
 
 (in-module 'brico/build/wikidmap)
 
-(use-module '{logger webtools varconfig libarchive texttools stringfmts})
+(use-module '{logger webtools varconfig libarchive texttools text/stringfmts})
 (use-module '{defmacro optimize})
 (use-module '{knodb knodb/branches knodb/typeindex knodb/flexindex})
 (use-module '{brico brico/indexing brico/wikid brico/build/wikidata})

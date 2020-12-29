@@ -8,7 +8,7 @@
   (config! 'wikidata:build #t))
 
 (use-module '{logger webtools varconfig libarchive texttools
-	      io/filestream brico stringfmts optimize
+	      io/filestream brico text/stringfmts optimize
 	      kno/reflect kno/profile})
 (use-module '{knodb knodb/branches knodb/typeindex 
 	      knodb/flexindex})

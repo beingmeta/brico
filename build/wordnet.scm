@@ -4,7 +4,7 @@
 (in-module 'brico/build/wordnet)
 
 (use-module '{texttools})
-(use-module '{logger varconfig optimize stringfmts})
+(use-module '{logger varconfig optimize text/stringfmts})
 (use-module '{knodb})
 (use-module '{brico})
 

@@ -1,6 +1,6 @@
 ;;; -*- Mode: Scheme; -*-
 
-(use-module '{logger varconfig fifo engine knodb stringfmts ezrecords})
+(use-module '{logger varconfig fifo engine knodb text/stringfmts ezrecords})
 (use-module '{knodb knodb/branches})
 
 (config! 'cachelevel 2)
