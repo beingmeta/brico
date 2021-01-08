@@ -59,7 +59,7 @@
     (knodb/make (mkpath dir "wikidata.flexpool")
 		[create #t type 'flexpool
 		 base @31c1/0 capacity (* 128 1024 1024)
-		 partsize (* 1024 1024) pooltypek 'bigpool
+		 partsize (* 1024 1024) pooltypek 'kpool
 		 prefix "pools/"
 		 adjuncts #[labels #[pool "labels"]
 			    aliases #[pool "aliases"]

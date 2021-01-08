@@ -73,7 +73,7 @@
 (define (wikid/init source)
   (set! wikid.pool
     (knodb/make (mkpath source "wikid.pool")
-		[create #t type 'bigpool
+		[create #t type 'kpool
 		 base @1/8000000 capacity (* 4 1024 1024)
 		 adjuncts #[%words #[pool "wikid_words"]
 			    %norms #[pool "wikid_norms"]
