@@ -10,7 +10,7 @@
 (use-module 'brico)
 (use-module '{texttools kno/reflect})
 (use-module '{morph morph/en})
-(use-module '{brico/maprules rulesets varconfig logger})
+(use-module '{brico/maprules kno/rulesets varconfig logger})
 
 (define logger %logger)
 

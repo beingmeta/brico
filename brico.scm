@@ -9,9 +9,8 @@
 		   freqfns use-wordforms})
 
 (use-module '{texttools kno/reflect logger varconfig knodb knodb/config binio})
-(use-module 'usedb)
 ;; For custom methods
-(use-module 'rulesets)
+(use-module 'kno/rulesets)
 
 (define-init %loglevel %notify%)
 ;;(set! %loglevel %debug%)
