@@ -30,7 +30,7 @@
 (pool/ref (mkpath indir "brico.pool"))
 
 (use-module '{brico brico/indexing})
-(use-module '{brico brico/indexing mttools trackrefs optimize tinygis})
+(use-module '{brico brico/indexing kno/mttools trackrefs optimize tinygis})
 (use-module '{logger varconfig})
 
 (defrecord (langinfo)
