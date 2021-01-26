@@ -5,7 +5,7 @@
 
 (poolctl brico.pool 'readonly #f)
 
-(use-module 'tinygis)
+(use-module 'knodb/tinygis)
 
 (define %volatile '{fixup})
 
