@@ -1,5 +1,5 @@
 (load-config "local.cfg")
-(use-module '{brico/build/wikidata brico/build/wikidmap})
+(use-module '{brico/build/wikidata brico/build/wikidmap binio})
 (dbctl {brico.pool wikid.pool 
 	(dbctl brico.index 'partitions)
 	(dbctl wikid.index 'partitions)}
