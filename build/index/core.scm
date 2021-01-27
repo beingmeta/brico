@@ -115,7 +115,7 @@
 	 branchindexes {core.index wordnet.index wikid.index
 			wikidref.index 
 			latlong.index}
-	 batchsize 10000 batchrange 4
+	 batchsize ,(config 'batchsize 10000) batchrange 4
 	 checkfreq 15
 	 checktests ,(engine/interval (config 'savefreq 60))
 	 checkpoint ,{pools core.index wikid.index wordnet.index 
@@ -135,6 +135,6 @@
     (commit)))
 
 (when (config 'optimize #t config:boolean)
-  (optimize! '{brico brico/indexing tinygis fifo engine})
+  (optimize! '{brico brico/indexing knodb/tinygis fifo engine})
   (optimize!))
 
