@@ -24,12 +24,11 @@
 	 (aliases.index  (getopt loop-state 'aliases.index))
 	 (glosses.index  (getopt loop-state 'glosses.index))
 	 (indicators.index  (getopt loop-state 'indicators.index))
-	 (other.index  (getopt loop-state 'other.index))
 	 (names.index (getopt loop-state 'names.index))
 	 (word-count 0)
 	 (name-count 0))
     (do-choices f
-      (unless  (or (not (test f 'type)) (test f 'source @1/1))
+      (when (and (test f 'type) (not (test f 'source @1/1)))
 	(let* ((words (choice (get f 'words) (get (get f '%words) 'en)))
 	       (norms {(get f 'norms) (get (get f '%norms) 'en)})
 	       (indicators (get (get f '%indicators) 'en))
@@ -57,25 +56,24 @@
 			(tryif (exists? glosses) @1/2ffbd"Gloss (English)")})
 	  (do-choices (gloss glosses)
 	    (index-gloss glosses.index f engloss gloss))
-	  (index-string other.index f '{family lastname}))))
+	  (index-string names.index f '{family lastname}))))
     (swapout f)))
 
 (define (main . names)
-  (config! 'appid "indexenglish")
+  (config! 'appid "index-english")
   (when (config 'optimize #t)
     (optimize! '{engine brico brico/indexing brico/lookup}))
-  (let* ((pools (use-pool (try (elts names) brico-pool-names)))
+  (let* ((pools (getdbpool (try (elts names) brico-pool-names)))
 	 (nconcepts (max (reduce-choice + pools 0 pool-load) #mib))
 	 (core.index (target-index "core.index" #f pools))
-	 (words.index (target-index "en.index" [keyslot english] pools))
+	 (words.index (target-index "en_words.index" [keyslot english] pools))
 	 (frags.index (target-index "en_frags.index" [keyslot frags] pools))
 	 (indicators.index 
 	  (target-index "en_indicators.index" [keyslot cues] pools))
 	 (norms.index (target-index "en_norms.index" [keyslot enorm] pools))
 	 (aliases.index (target-index "en_aliases.index" [keyslot enaliases] pools))
 	 (glosses.index (target-index "en_glosses.index" [keyslot engloss] pools))
-	 (names.index (target-index "en_names.index" #[keyslot names] pools))
-	 (other.index (target-index "en_other.index" #f pools))
+	 (names.index (target-index "names.index" #f pools))
 	 (oids (difference (pool-elts pools) (?? 'source @1/1) (?? 'status 'deleted))))
     (dbctl (pool/getindexes pools) 'readonly #f)
     (engine/run index-english oids
@@ -86,7 +84,6 @@
 		norms.index ,norms.index
 		aliases.index ,aliases.index
 		glosses.index ,glosses.index
-		other.index ,other.index
 		names.index ,names.index]
 	 counters {words names}
 	 logcounters #(words names)

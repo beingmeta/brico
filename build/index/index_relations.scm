@@ -31,7 +31,8 @@
     (swapout frames)))
 
 (define (main . names)
-  (let* ((pools (use-pool (try (elts names) brico-pool-names)))
+  (config! 'appid "index-relations")
+  (let* ((pools (getdbpool (try (elts names) brico-pool-names)))
 	 (relns-index (target-index relations-index #f pools))
 	 (isa-index (target-index "isa.index" #f pools))
 	 (index  (make-aggregate-index {relns-index isa-index}

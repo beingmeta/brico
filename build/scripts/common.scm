@@ -24,6 +24,8 @@
       "The specified output path " (write outdir) " isn't a directory")))
 (when (config 'checkdirs #t config:boolean) (check-dirs))
 
+(define (getdbpool arg) (knodb/ref arg))
+
 ;;(define misc-slotids (file->dtype (mkpath data-dir "miscslots.dtype")))
 
 (config! 'bricosource indir)
@@ -88,8 +90,10 @@
   (default! size (getopt opts 'size (config 'INDEXSIZE (* 8 #mib))))
   (default! keyslot (getopt opts 'keyslot (config 'keyslot #f)))
   (when (not size) (set! size (* 8 #mib)))
-  (unless (position #\/ filename) 
+  (unless (search "/" filename)
     (set! filename (mkpath outdir filename)))
+  (unless (file-directory? (dirname filename)) 
+    (mkdirs (dirname filename)))
   (let ((index (access-index filename opts size keyslot)))
     (when pools
       (do-choices (pool pools)

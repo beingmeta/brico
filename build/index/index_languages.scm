@@ -16,17 +16,15 @@
 	 (norms.index  (getopt loop-state 'norms.index))
 	 (aliases.index  (getopt loop-state 'aliases.index))
 	 (indicators.index  (getopt loop-state 'indicators.index))
-	 (glosses.index  (getopt loop-state 'glosses.index))
-	 (names.index  (getopt loop-state 'names.index)))
+	 (glosses.index  (getopt loop-state 'glosses.index)))
     (do-choices f
-      (unless (or (not (test f 'type)) (test f 'source @1/1))
+      (when (and (test f 'type) (not (test f 'source @1/1)))
 	(let* ((%words (get f '%words))
 	       (%norms (get f '%norms))
 	       (%aliases (get f '%aliases))
 	       (%glosses (get f '%glosses))
 	       (%indicators (get f '%indicators))
-	       (langids (getkeys {%words %norms %glosses %indicators}))
-	       (names (pick (getvalues {%words %aliases}) capitalized?)))
+	       (langids (getkeys {%words %norms %glosses %indicators})))
 	  (when (exists? %words)
 	    (index-frame core.index f 'has '%words))
 	  (when (exists? %norms)
@@ -37,8 +35,6 @@
 	    (index-frame core.index f 'has '%glosses))
 	  (when (exists? %indicators)
 	    (index-frame core.index f 'has '%indicators))
-	  (when (exists? names) 
-	    (index-frame names.index f 'names {names (downcase names)}))
 	  (do-choices (langid (difference langids 'en))
 	    (when (test %words langid)
 	      (let* ((words (get %words langid))
@@ -73,19 +69,18 @@
       (swapout f))))
 
 (define (main . names)
-  (config! 'appid "indexwords")
+  (config! 'appid "index-multilingual")
   (when (config 'optimize #t)
     (optimize! '{engine brico brico/indexing brico/lookup}))
-  (let* ((pools (knodb/ref (try (elts names) brico-pool-names)))
+  (let* ((pools (getdbpool (try (elts names) brico-pool-names)))
 	 (nconcepts (max (reduce-choice + pools 0 pool-load) #mib))
 	 (core.index (target-index "core.index" #f pools))
-	 (words.index (target-index "words.index" #f pools))
-	 (frags.index (target-index "frags.index" #f pools))
-	 (indicators.index (target-index "indicators.index" #f pools))
-	 (glosses.index (target-index "glosses.index" #f pools))
-	 (norms.index (target-index "norms.index" #f pools))
-	 (aliases.index (target-index "aliases.index" #f pools))
-	 (names.index (target-index "names.index" #f pools))
+	 (words.index (target-index "lex_words.index" #f pools))
+	 (frags.index (target-index "lex_frags.index" #f pools))
+	 (indicators.index (target-index "lex_indicators.index" #f pools))
+	 (glosses.index (target-index "lex_glosses.index" #f pools))
+	 (norms.index (target-index "lex_norms.index" #f pools))
+	 (aliases.index (target-index "lex_aliases.index" #f pools))
 	 (oids (difference (pool-elts pools) (?? 'source @1/1) (?? 'status 'deleted))))
     (dbctl (pool/getindexes pools) 'readonly #f)
     (drop! core.index (cons 'has lexslots))
@@ -96,8 +91,7 @@
 		indicators.index ,indicators.index
 		glosses.index ,glosses.index
 		aliases.index ,aliases.index
-		norms.index ,norms.index
-		names.index ,names.index]
+		norms.index ,norms.index]
 	 counters {words names}
 	 logcounters #(words names)
 	 batchsize ,(config 'batchsize 5000)
@@ -106,8 +100,7 @@
 	 checktests ,(engine/delta 'items 100000)
 	 checkpoint ,{pools core.index words.index frags.index 
 		      indicators.index aliases.index
-		      norms.index glosses.index
-		      names.index}
+		      norms.index glosses.index}
 	 logfns {,engine/log ,engine/logrusage}
 	 logchecks #t])
     (commit)))

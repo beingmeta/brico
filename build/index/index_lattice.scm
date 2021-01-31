@@ -42,7 +42,8 @@
 	combined)))
 
 (define (main . names)
-  (let* ((pools (use-pool (try (elts names) brico-pool-names)))
+  (config! 'appid "index-lattice")
+  (let* ((pools (getdbpool (try (elts names) brico-pool-names)))
 	 (frames (if (config 'JUST)
 		     (sample-n (pool-elts pools) (config 'just))
 		     (pool-elts pools)))

@@ -17,8 +17,8 @@
 
 (define core-index (target-file "core.index"))
 (define wordnet-index (target-file "wordnet.index"))
-(define wikid-index (target-file "wikid.index"))
-(define wikidref-index (target-file "wikidref.index"))
+(define wikidprops-index (target-file "wikidprops.index"))
+(define wikidrefs-index (target-file "wikidrefs.index"))
 (define latlong-index (target-file "latlong.index"))
 
 (define (index-latlong index f)
@@ -63,12 +63,12 @@
 
 (defambda (indexer frames batch-state loop-state task-state)
   (let ((core.index (get batch-state 'core.index))
-	(wikid.index (get batch-state 'wikid.index))
+	(wikidprops.index (get batch-state 'wikidprops.index))
 	(latlong.index (get batch-state 'latlong.index))
-	(wikidref.index (get batch-state 'wikidref.index))
+	(wikidrefs.index (get batch-state 'wikidrefs.index))
 	(wordnet.index (get batch-state 'wordnet.index)))
     (info%watch "INDEXER/thread"
-      core.index wikid.index latlong.index wordnet.index)
+      core.index wikidprops.index latlong.index wordnet.index)
     (prefetch-oids! frames)
     (do-choices (f frames)
       (when fixup (fixup f))
@@ -85,8 +85,8 @@
 	     (index-brico core.index f)
 	     (index-latlong latlong.index f)
 	     (index-frame core.index f index-also)
-	     (index-wikid wikid.index f)
-	     (when (test f 'wikidref) (index-frame wikidref.index f 'wikidref)))
+	     (index-wikid wikidprops.index f)
+	     (when (test f 'wikidref) (index-frame wikidrefs.index f 'wikidref)))
 	    ((test f 'type '{slot language lexslot kbsource})
 	     (index-brico core.index f)
 	     (index-frame core.index f index-also))
@@ -95,31 +95,31 @@
   (swapout frames)))
 
 (define (main . names)
-  (config! 'appid  "indexcore")
-  (let* ((pools (use-pool (try (elts names) brico-pool-names)))
+  (config! 'appid  "index-core")
+  (let* ((pools (getdbpool (try (elts names) brico-pool-names)))
 	 (core.index (target-index core-index #f pools))
 	 (latlong.index (target-index latlong-index #[keyslot {lat long}] pools))
 	 (wordnet.index (target-index wordnet-index #f pools))
-	 (wikidref.index (target-index wikidref-index #[keyslot wikidref] pools))
-	 (wikid.index (target-index wikid-index #f pools))
-	 (index (make-aggregate-index {core.index latlong.index wikidref.index}
+	 (wikidrefs.index (target-index wikidrefs-index #[keyslot wikidref] pools))
+	 (wikidprops.index (target-index wikidprops-index #f pools))
+	 (index (make-aggregate-index {core.index latlong.index wikidrefs.index}
 				      [register #t])))
     (commit pools) ;; Save updated INDEXES metadata on pools
-    (info%watch "MAIN" core.index wikid.index latlong.index wordnet.index)
+    (info%watch "MAIN" core.index wikidprops.index latlong.index wordnet.index)
     (engine/run indexer (pool-elts pools)
       `#[loop #[core.index ,core.index
 		wordnet.index ,wordnet.index
 		latlong.index ,latlong.index
-		wikid.index ,wikid.index
-		wikidref.index ,wikidref.index]
-	 branchindexes {core.index wordnet.index wikid.index
-			wikidref.index 
+		wikidprops.index ,wikidprops.index
+		wikidrefs.index ,wikidrefs.index]
+	 branchindexes {core.index wordnet.index wikidprops.index
+			wikidrefs.index 
 			latlong.index}
 	 batchsize ,(config 'batchsize 10000) batchrange 4
 	 checkfreq 15
 	 checktests ,(engine/interval (config 'savefreq 60))
-	 checkpoint ,{pools core.index wikid.index wordnet.index 
-		      wikidref.index latlong.index}
+	 checkpoint ,{pools core.index wikidprops.index wordnet.index 
+		      wikidrefs.index latlong.index}
 	 logfns {,engine/log ,engine/logrusage}
 	 logfreq ,(config 'logfreq 50)
 	 logchecks #t])

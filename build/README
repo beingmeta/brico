@@ -1,0 +1,17 @@
+BRICO working directory structure:
+
+  ./brico       (where BRICO database files live)
+  ./brico_fresh (where new BRICO index files are stated)
+  ./wikid       (where WIKID database files live)
+  ./wikid_fresh (where new WIKID index files are stated)
+
+  ./wikidata    (where imported wikidata database files live)
+  ./latest-all.json (link to JSON export)
+
+  ./src         (link to the brico source module)
+
+  ./makefile    (link to ./src/build/scripts)
+  ./scripts     (link to ./src/build/scripts)
+  ./index       (link to ./src/build/index)
+  ./indexpool   (link to ./index/indexpool
+

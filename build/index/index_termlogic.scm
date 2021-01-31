@@ -97,11 +97,11 @@
     (swapout concepts)))
 
 (define (main . names)
-  (let* ((pools (use-pool (try (elts names) brico-pool-names)))
+  (let* ((pools (getdbpool (try (elts names) brico-pool-names)))
 	 (termlogic.index (target-index "termlogic.index" #f pools))
 	 (target termlogic.index))
     (commit pools) ;; Save metadata
-    (if (config 'phase2) (config! 'appid "termlogic2") (config! 'appid "termlogic1"))
+    (if (config 'phase2) (config! 'appid "index4termlogic.2") (config! 'appid "index4termlogic.1"))
     (engine/run (if (config 'phase2 #f) index-phase2 index-phase1)
 	(difference (pool-elts pools) (?? 'source @1/1) (?? 'status 'deleted))
       `#[loop #[indexes ,target]
