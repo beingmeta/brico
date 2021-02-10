@@ -78,7 +78,7 @@
 (define (wikidmatch wikidata (spec #f) (opts #f))
   (let* ((lower (getopt opts 'lower #f))
 	 (words {(get wikidata 'words) (get wikidata 'norms)})
-	 (candidates (?? @?en {words (tryif lower (downcase words))})))
+	 (candidates (?? en {words (tryif lower (downcase words))})))
     (when spec 
       (do-choices (slotid (getkeys spec))
 	(set! candidates (intersection candidates 

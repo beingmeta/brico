@@ -16,10 +16,10 @@
 (define index-also '{ticker})
 
 (define core-index (target-file "core.index"))
-(define wordnet-index (target-file "wordnet.index"))
 (define wikidprops-index (target-file "wikidprops.index"))
 (define wikidrefs-index (target-file "wikidrefs.index"))
 (define latlong-index (target-file "latlong.index"))
+(define wordnet-index (target-file "wordnet.index"))
 
 (define (index-latlong index f)
   (when (test f '{lat long})
@@ -75,13 +75,14 @@
       (cond ((or (test f 'type 'deleted) (test f 'deleted))
 	     (index-frame core.index 'status 'deleted))
 	    ((test f 'source index-sources)
-	     (index-frame wordnet.index
-		 f '{type source has words hypernym hyponym sensecat
-		     sensekeys synsets verb-frames pertainym
-		     lex-fileno})
-	     (index-frame wordnet.index f '%sensekeys (getvalues (get f '%sensekeys)))
-	     (index-frame wordnet.index f 'has (getkeys f))
-	     (index-gloss wordnet.index f 'gloss)
+	     (when (exists? wordnet.index)
+	       (index-frame wordnet.index
+		   f '{type source has words hypernym hyponym sensecat
+		       sensekeys synsets verb-frames pertainym
+		       lex-fileno})
+	       (index-frame wordnet.index f '%sensekeys (getvalues (get f '%sensekeys)))
+	       (index-frame wordnet.index f 'has (getkeys f))
+	       (index-gloss wordnet.index f 'gloss #default 'en))
 	     (index-brico core.index f)
 	     (index-latlong latlong.index f)
 	     (index-frame core.index f index-also)
@@ -99,7 +100,8 @@
   (let* ((pools (getdbpool (try (elts names) brico-pool-names)))
 	 (core.index (target-index core-index #f pools))
 	 (latlong.index (target-index latlong-index #[keyslot {lat long}] pools))
-	 (wordnet.index (target-index wordnet-index #f pools))
+	 (wordnet.index (tryif (overlaps? (pool-base pools) @1/0)
+			  (target-index wordnet-index #f pools)))
 	 (wikidrefs.index (target-index wikidrefs-index #[keyslot wikidref] pools))
 	 (wikidprops.index (target-index wikidprops-index #f pools))
 	 (index (make-aggregate-index {core.index latlong.index wikidrefs.index}
@@ -130,8 +132,8 @@
 	"Indexing " ($count (choice-size wordforms) "wordform"))
       (prefetch-oids! wordforms)
       (do-choices (f wordforms)
-	(index-frame wordnet.index f '{word of sensenum language rank type}))
-      (commit wordnet.index))
+	(index-frame (try wordnet.index core.index) f '{word of sensenum language rank type}))
+      (commit {wordnet.index core.index}))
     (commit)))
 
 (when (config 'optimize #t config:boolean)

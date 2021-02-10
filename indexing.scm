@@ -141,13 +141,15 @@
       ((empty? g))
     (index-relation index frame slot g inverse)))
 
-(define (index-gloss index frame slotid (value))
+(define (index-gloss index frame slotid (value) (language 'en) (stem))
   (default! value (get frame slotid))
+  (default! stem (overlaps? language 'en))
   (let* ((wordlist (getwords value))
 	 (gloss-words (filter-choices (word (elts wordlist))
-			(< (length word) 16))))
+			(< 2 (length word) 16))))
     (index-frame index frame slotid
-		 (choice gloss-words (porter-stem gloss-words)))))
+		 (choice gloss-words 
+			 (tryif stem (string->packet (porter-stem gloss-words)))))))
 
 ;;; Indexing string fragments
 

@@ -64,7 +64,7 @@
 	      (index-frame core.index 'has (get gloss-map langid)))
 	    (when (test %glosses langid)
 	      (index-gloss glosses.index f (get gloss-map langid)
-			   (get %glosses langid))
+			   (get %glosses langid) #f)
 	      (index-frame core.index f 'has (get gloss-map langid))))))
       (swapout f))))
 

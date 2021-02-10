@@ -132,8 +132,9 @@
 		  wikids.index buildmap.table
 		  has.index}))
 
-(define (wikidata/makeid wf)
-  `(wikidata ,(get wf 'id)
+(define (wikidata/makeid wf (id))
+  (default! id (try (get wf 'id) "??"))
+  `(wikidata ,id
 	     ,@(if (singleton? (get wf 'norms))
 		   `(norm ,(get wf 'norms))
 		   (if (singleton? (get wf 'words))

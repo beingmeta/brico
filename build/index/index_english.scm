@@ -55,7 +55,7 @@
 			(tryif (exists? aliases) @1/2ac91"Aliases in English")
 			(tryif (exists? glosses) @1/2ffbd"Gloss (English)")})
 	  (do-choices (gloss glosses)
-	    (index-gloss glosses.index f engloss gloss))
+	    (index-gloss glosses.index f engloss gloss 'en))
 	  (index-string names.index f '{family lastname}))))
     (swapout f)))
 

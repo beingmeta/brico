@@ -9,9 +9,9 @@
 
 (use-module '{logger webtools varconfig libarchive texttools
 	      io/filestream brico text/stringfmts optimize
-	      kno/reflect kno/profile})
-(use-module '{knodb knodb/branches knodb/typeindex 
-	      knodb/flexindex})
+	      kno/reflect kno/profile
+	      kno/mttools})
+(use-module '{knodb knodb/branches knodb/typeindex knodb/flexindex})
 (use-module 'brico/build/wikidata)
 
 (config! 'cachelevel 2)
@@ -21,10 +21,15 @@
 (config! 'dbloglevel %warn%)
 (config! 'xprofiling #t)
 
+(dbctl brico.pool 'readonly #f)
+
 (define inbufsize (* 1024 1024 3))
 (varconfig! inbufsize inbufsize)
 
 (define %loglevel %notice%)
+
+(define dochain #f)
+(varconfig! chain dochain config:boolean)
 
 ;;; Reading data
 
@@ -41,18 +46,6 @@
   (filestream/save! in))
 
 ;;; Parsing the data
-
-(define (get-wikidref id)
-  (try (get buildmap.table id)
-       (let ((ref (new-wikidref id)))
-	 (index-frame wikids.index ref 'id id)
-	 ref)))
-
-(defslambda (new-wikidref id)
-  (try (get buildmap.table id)
-       (let ((f (frame-create wikidata.pool 'id id 'created (gmtimestamp))))
-	 (store! buildmap.table id f)
-	 f)))
 
 (define (convert-lexslot slotval (new (frame-create #f)))
   (do-choices (key (getkeys slotval))
@@ -79,11 +72,13 @@
 (define refslots '{type datatype rank snaktype type})
 
 (define (convert-claims v)
-  (cond ((vector? v)
-	 (convert-claims (elts v)))
-	((string? v) (try (get wikidata.props v) v))
-	((not (table? v)) v)
-	(else
+  (cond ((symbol? v) (try (get propmaps.table (upcase v)) v))
+	((string? v)
+	 (if (has-prefix v {"p" "P"})
+	     (try (get propmaps.table (upcase v)) v)
+	     v))
+	((vector? v) (convert-claims (elts v)))
+	((table? v)
 	 (when (test v 'references) (drop! v 'references))
 	 (try
 	  (tryif (test v 'datatype "wikibase-item")
@@ -96,19 +91,26 @@
 		(keys (getkeys v)))
 	    (do-choices (key keys)
 	      (let* ((vals (get v key))
-		     (slot (try (get wikidata.props key) key)))
+		     (slot (try (get propmaps.table (upcase key)) key)))
 		(when (vector? vals) (set! vals (elts vals)))
 		(cond ((overlaps? slot typeslots)
 		       (add! converted slot (symbolize vals)))
 		      (else (add! converted slot (convert-claims vals))))))
-	    converted)))))
+	    converted)))
+	(else v)))
 
 (define (import-wikid-item item index has.index)
   (let* ((id (get item 'id))
-	 (ref (get-wikidref id)))
-    (info%watch "IMPORT-WIKID-ITEM" id ref)
-    (store! ref 'wikitype (string->symbol (get item 'type)))
+	 (ref (get-wikidref id))
+	 (type (get item 'type))
+	 (needs-init (fail? (oid-value ref))))
+    ;;(info%watch "IMPORT-WIKID-ITEM" id ref)
     (unless (test ref 'lastrevid (get item 'lastrevid))
+      (store! ref 'wikid id)
+      (store! ref 'type type)
+      (let ((moment (timestamp)))
+	(store! ref 'modified moment)
+	(unless (test ref 'created) (store! ref 'created moment)))
       (store! ref 'lastrevid (get item 'lastrevid))
       (store! ref 'labels (convert-lexslot (get item 'labels)))
       (store! ref 'aliases (convert-lexslot (get item 'aliases)))
@@ -122,8 +124,9 @@
 		       (list (elts (words->vector compound)))))
 	     (fwords (for-choices (compound (pick {words swords} compound-string?))
 		       (list (elts (words->vector compound))))))
-      (store! ref 'norms norms)
+	(store! ref 'norms norms)
 	(store! ref 'words words)
+	(index-frame index ref 'wikid id)
 	(index-frame index ref 'words {words swords fwords})
 	(index-frame index ref 'norms {norms snorms fnorms}))
       (let* ((claims (convert-claims (get item 'claims)))
@@ -136,7 +139,11 @@
 			(get (get (pickmaps main) 'datavalue) 'value)}))
 	    (add! ref prop vals)
 	    (index-frame index ref prop (pickoids vals)))))
-      (index-frame has.index ref 'has (getkeys ref)))
+      (index-frame has.index ref 'has (getkeys ref))
+      (index-frame index ref 'type)
+      (unless (in-pool? ref brico.pool)
+	(store! ref '%id (wikidata/makeid ref id)))
+      (loginfo |Imported| id " ==> " ref))
     ref))
 
 ;;; Reporting
@@ -153,7 +160,9 @@
 	(started (elapsed-time))
 	(saved (elapsed-time)))
     (while (< (elapsed-time started) duration)
-      (let* ((line (filestream/read in))
+      (let* ((entry (filestream/read in #t))
+	     (line (cdr entry))
+	     (count (car entry))
 	     (item (and (satisfied? line) (string? line)
 			(jsonparse line 'symbolize))))
 	(debug%watch "READ-LOOP" line item)
@@ -168,9 +177,7 @@
 (define (thread-loop in (threadcount #t) (duration 60) 
 		     (index wikidata.index) (has.index has.index))
   (let ((threads {}))
-    (dotimes (i (if (number? threadcount)
-		    threadcount
-		    (rusage 'ncpus)))
+    (dotimes (i (mt/threadcount threadcount))
       (set+! threads (thread/call read-loop in duration index has.index)))
     (thread/join threads)))
 
@@ -185,7 +192,9 @@
 	(let ((started (elapsed-time))
 	      (saved (elapsed-time)))
 	  (while (< (elapsed-time started) duration)
-	    (let* ((line (filestream/read in))
+	    (let* ((entry (filestream/read in #t))
+		   (line (cdr entry))
+		   (count (car entry))
 		   (item (and (satisfied? line) (string? line)
 			      (jsonparse line 'symbolize))))
 	      (when item
@@ -216,10 +225,10 @@
     (clearcaches)
     (filestream/log! in '(overall))))
 
-(define (main (file "latest-all.json") 
+(define (main (file "latest-wikidata.json") 
 	      (secs (config 'cycletime 120))
 	      (cycles (config 'cycles 10))
-	      (threadcount (config 'nthreads #t)))
+	      (threadcount (mt/threadcount (config 'nthreads #t))))
   (unless (config 'wikidata) (config! 'wikidata (abspath "wikidata")))
   (let ((in (filestream/open file filestream-opts))
 	(dochain (and (bound? chain) (config 'chain #t config:boolean)))
@@ -233,7 +242,7 @@
 		 (secs->string (elapsed-time started)))
       (filestream/log! in '(overall)))
     (checkpoint in)
-    (if (or (config 'nochain #f) (unbound? chain) (not (applicable? chain)))
+    (if (or (not dochain) (unbound? chain) (not (applicable? chain)))
 	(logwarn |NoChain| "Just exiting")
 	(unless (or (file-exists? "read-wikidata.stop") (filestream/done? in))
 	  (if chain
@@ -241,20 +250,31 @@
 	      (logcrit |NoChain| "Just exiting"))))))
   
 (when (config 'optimized #t)
-  (optimize! '{knodb knodb/flexpool knodb/adjuncts 
-	       knodb/branches knodb/typeindex brico brico/indexing
+  (optimize! '{knodb knodb/flexpool knodb/flexindex knodb/adjuncts 
+	       knodb/branches knodb/typeindex
+	       brico brico/indexing brico/build/wikidata
 	       io/filestream})
   (logwarn |Optimized| 
-    "Modules " '{knodb knodb/flexpool knodb/adjuncts 
-		 knodb/branches knodb/typeindex brico brico/indexing
+    "Modules " '{knodb knodb/flexpool knodb/flexindex knodb/adjuncts 
+		 knodb/branches knodb/typeindex
+		 brico brico/indexing brico/build/wikidata
 		 io/filestream})
   (optimize!)
   (logwarn |Optimized| (get-source)))
 
-(config! 'profiled filestream/read)
+(when (config 'profiling #f)
+  (config! 'profiled filestream/read)
+  (config! 'profiled 
+	   {get-wikidref probe-wikidref get-wikidprop
+	    import-wikid-item 
+	    convert-claims convert-lexslot
+	    convert-sitelinks
+	    filestream/read}))
 
-(when (config 'profiled #f)
-  (config! 'profiled {get-wikidref new-wikidref import-wikid-item 
-		      convert-claims convert-lexslot
-		      convert-sitelinks
-		      filestream/read}))
+(comment
+ (begin
+   (define in (filestream/open "latest-wikidata.json")) (filestream/read in)
+   (define (read-item in) (jsonparse (filestream/read in)))
+   (define last-input #f)
+   (define (import (in in))
+     (import-wikid-item (read-item in) wikidata.index has.index))))
