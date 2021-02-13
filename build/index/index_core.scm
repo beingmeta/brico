@@ -73,7 +73,7 @@
     (do-choices (f frames)
       (when fixup (fixup f))
       (cond ((or (test f 'type 'deleted) (test f 'deleted))
-	     (index-frame core.index 'status 'deleted))
+	     (index-frame core.index f 'status 'deleted))
 	    ((test f 'source index-sources)
 	     (when (exists? wordnet.index)
 	       (index-frame wordnet.index

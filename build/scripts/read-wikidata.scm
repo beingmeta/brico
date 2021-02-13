@@ -18,6 +18,8 @@
 (config! 'logthreadinfo #t)
 (config! 'logelapsed #t)
 (config! 'thread:logexit #f)
+(config! 'filestream:inbufsize (* 50 #mib))
+(config! 'filestream:bufsize (* 50 #mib))
 (config! 'dbloglevel %warn%)
 (config! 'xprofiling #t)
 
@@ -160,9 +162,7 @@
 	(started (elapsed-time))
 	(saved (elapsed-time)))
     (while (< (elapsed-time started) duration)
-      (let* ((entry (filestream/read in #t))
-	     (line (cdr entry))
-	     (count (car entry))
+      (let* ((line (filestream/read in))
 	     (item (and (satisfied? line) (string? line)
 			(jsonparse line 'symbolize))))
 	(debug%watch "READ-LOOP" line item)
@@ -171,7 +171,8 @@
 	  (when  (and (> (elapsed-time saved) 10)
 		      (zero? (random 500)))
 	    (branch/commit! branch)
-	    (set! saved (elapsed-time))))))
+	    (set! saved (elapsed-time)))))
+      (when (filestream/done? in) (break)))
     (branch/commit! branch)))
 
 (define (thread-loop in (threadcount #t) (duration 60) 
@@ -198,7 +199,8 @@
 		   (item (and (satisfied? line) (string? line)
 			      (jsonparse line 'symbolize))))
 	      (when item
-		(import-wikid-item item index has.index))))))
+		(import-wikid-item item index has.index)))
+	    (when (filestream/done? in) (break)))))
     (let ((cur-count (filestream-itemcount in)))
       (lognotice |Saving|
 	"wikidata after processing "

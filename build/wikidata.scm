@@ -9,13 +9,15 @@
 	      knodb/flexindex})
 
 (module-export! '{wikidata.dir
-		  wikidata.pool wikidata.index  wikids.index
-		  words.index norms.index has.index props.index
-		  buildmap.table
-		  wikidata.props
+		  wikidata.pool wikidata.index
+		  words.index norms.index has.index props.index wikidata.props
+		  propmaps.table
 		  wikidata/ref wikid/ref
 		  wikidata/find wikid/find
-		  wikidata/makeid})
+		  wikidata/makeid
+		  get-wikidref
+		  probe-wikidref
+		  get-wikidprop})
 
 (module-export! '{wikidata/save!})
 
@@ -25,15 +27,14 @@
 
 (define wikidata.pool #f)
 (define wikidata.index #f)
-(define wikids.index #f)
 
 (define words.index #f)
 (define norms.index #f)
 (define has.index #f)
 (define props.index #f)
 
-(define buildmap.table #f)
-(define wikidata.props #f)
+(define newprops.index #f)
+(define-init propmaps.table (make-hashtable))
 
 (define wikidata-build #f)
 
@@ -42,16 +43,6 @@
 
 (define (setup-wikidata dir)
   (logwarn |SetupWikidata| dir)
-  (if core.index
-      (let ((props (?? 'type '{wikidprop wikidata}))
-	    (table (make-hashtable)))
-	(prefetch-oids! props)
-	(do-choices (prop props)
-	  (add! table (get prop 'wikid) prop)
-	  (add! table (downcase (get prop 'wikid)) prop)
-	  (add! table (string->symbol (downcase (get prop 'wikid))) prop))
-	(set! wikidata.props table))
-      (error |NoBrico|))
 
   (set! wikidata.dir (realpath dir))
 
@@ -59,47 +50,70 @@
     (knodb/make (mkpath dir "wikidata.flexpool")
 		[create #t type 'flexpool
 		 base @31c1/0 capacity (* 128 1024 1024)
-		 partsize (* 1024 1024) pooltypek 'kpool
+		 partsize (* 1024 1024) pooltype 'kpool
 		 prefix "pools/"
 		 adjuncts #[labels #[pool "labels"]
 			    aliases #[pool "aliases"]
 			    claims #[pool "claims"]
 			    sitelinks #[pool "sitelinks"]]
-		 reserve 1]))
-
-  (when wikidata-build
-    (set! buildmap.table
-      (knodb/make (mkpath dir "wikids.table") [indextype 'logindex create #t])))
-
-  (set! wikids.index
-    (flex/open-index (mkpath dir "wikids.flexindex")
-		     [indextype 'kindex size (* 8 1024 1024) create #t
-		      readonly (not (config 'wikidata:build))
-		      keyslot 'id register #t
-		      maxkeys (* 4 1024 1024)]))
+		 prealloc #t
+		 reserve 120]))
 
   (set! words.index
-    (flex/open-index (mkpath dir "words.flexindex")
-		     [indextype 'kindex size (* 4 1024 1024) create #t
-		      readonly (not (config 'wikidata:build))
-		      keyslot 'words register #t
-		      maxkeys (* 2 1024 1024)]))
+    (if (and (file-exists? (mkpath dir "words.index"))
+	     (file-exists? (mkpath dir "rare/words.flexindex")))
+	{(knodb/ref (mkpath dir "words.index") [readonly #t keyslot 'words register #t])
+	 (knodb/ref (mkpath dir "rare/words.flexindex") [readonly #t keyslot 'words register #t])}
+	(flex/open-index (mkpath dir "words.flexindex")
+			 [indextype 'kindex size (* 6 1024 1024) create #t
+			  readonly (not (config 'wikidata:build))
+			  keyslot 'words register #t
+			  maxkeys (* 3 1024 1024)])))
+
   (set! norms.index
-    (flex/open-index (mkpath dir "norms.flexindex")
-		     [indextype 'kindex size (* 4 1024 1024) create #t
-		      readonly (not (config 'wikidata:build))
-		      keyslot 'norms register #t
-		      maxkeys (* 2 1024 1024)]))
+    (if (and (file-exists? (mkpath dir "norms.index"))
+	     (file-exists? (mkpath dir "rare/norms.flexindex")))
+	{(knodb/ref (mkpath dir "norms.index") [readonly #t keyslot 'norms register #t])
+	 (knodb/ref (mkpath dir "rare/norms.flexindex") [readonly #t keyslot 'norms register #t])}
+	(flex/open-index (mkpath dir "norms.flexindex")
+			 [indextype 'kindex size (* 6 1024 1024) create #t
+			  readonly (not (config 'wikidata:build))
+			  keyslot 'norms register #t
+			  maxkeys (* 3 1024 1024)])))
+
+  (set! props.index
+    (if (and (file-exists? (mkpath dir "props.index"))
+	     (file-exists? (mkpath dir "rare/props.flexindex")))
+	{(knodb/ref (mkpath dir "props.index") [readonly #t keyslot 'props register #t])
+	 (knodb/ref (mkpath dir "rare/props.flexindex") [readonly #t keyslot 'props register #t])}
+	(flex/open-index (mkpath dir "props.flexindex")
+			 [indextype 'kindex size (* 6 1024 1024) create #t
+			  readonly (not (config 'wikidata:build))
+			  keyslot 'props register #t
+			  maxkeys (* 3 1024 1024)])))
+
   (set! has.index
     (knodb/make (mkpath dir "hasprops.index")
 		[indextype 'kindex create #t keyslot 'has register #t]))
-  (set! props.index
-    (flex/open-index (mkpath dir "props.flexindex")
-		     [indextype 'kindex size (* 4 1024 1024) create #t
-		      readonly (not (config 'wikidata:build))
-		      register #t maxkeys (* 2 1024 1024)]))
+
+  ;; This is used to index newly created properties
+  (set! newprops.index 
+    (knodb/ref (mkpath dir "newprops.index")
+	       [indextype 'kindex size #mib create #t
+		readonly (not (config 'wikidata:build))
+		background #t
+		register #t]))
+
+  (let ((props {(find-frames core.index 'type 'wikidprop) 
+		(find-frames newprops.index 'type 'wikidprop)})
+	(table propmaps.table))
+    (prefetch-oids! props)
+    (do-choices (prop props) 
+      (store! table (get prop '{wikid wikidref}) prop)
+      (store! table (upcase (get prop '{wikid wikidref})) prop)))
+
   (set! wikidata.index
-    (make-aggregate-index {words.index norms.index has.index props.index})))
+    (make-aggregate-index {words.index norms.index has.index props.index newprops.index})))
 
 (define (config-wikidata-source var (val #f))
   (cond ((not val) wikidata.dir)
@@ -119,27 +133,61 @@
     (cond ((not (bound? val)) wikidata-build)
 	  ((not val)
 	   (set! wikidata-build #f)
-	   (set! buildmap.table #f))
+	   ;; (set! buildmap.table #f)
+	   )
 	  ((not wikidata.dir) (error |NoWikidataConfigured|))
 	  (wikidata-build wikidata-build)
-	  (else (set! buildmap.table
-		  (knodb/make (mkpath wikidata.dir "wikids.logindex")
-			      [indextype 'logindex create #t]))
+	  (else ;; (set! buildmap.table
+		;;   (knodb/make (mkpath wikidata.dir "wikids.logindex")
+		;; 	      [indextype 'logindex create #t]))
 		(set! wikidata-build #t)))))
 
 (define (wikidata/save!)
-  (knodb/commit! {wikidata.pool wikidata.index 
-		  wikids.index buildmap.table
-		  has.index}))
+  (knodb/commit! {wikidata.pool wikidata.index brico.pool
+		  words.index norms.index has.index props.index
+		  newprops.index}))
+
+;;; Wikidata refs
+
+(define (get-wikidref id)
+  (if (has-prefix id "Q")
+      (oid-plus @31c1/0 (string->number (slice id 1)))
+      (try (get propmaps.table (upcase id)) (make-new-prop (upcase id)))))
+
+(define (probe-wikidref id)
+  (if (has-prefix id "Q")
+      (oid-plus @31c1/0 (string->number (slice id 1)))
+      (get propmaps.table id)))
+
+(define (get-wikidprop id)
+  (if (or (symbol? id) (string? id)) 
+      (get propmaps.table (upcase id))
+      id))
+
+(define-init make-new-prop
+  (defsync (make-new-prop id) (try (?? 'wikid id) (alloc-new-prop id))))
+
+(define (alloc-new-prop id)
+  (let ((f (frame-create brico.pool
+	     'type '{wikidprop property slot}
+	     'wikidtype 'property
+	     'wikid id 'wikidref id
+	     'source 'wikidata
+	     '%id (list 'WIKIDPROP id))))
+    (index-frame newprops.index f '{type wikidtype wikid wikidref source})
+    (index-frame newprops.index f 'has (getkeys f))
+    (store! propmaps.table id f)
+    f))
+
+;;; Generating %id slots
 
 (define (wikidata/makeid wf (id))
   (default! id (try (get wf 'id) "??"))
-  `(wikidata ,id
-	     ,@(if (singleton? (get wf 'norms))
-		   `(norm ,(get wf 'norms))
-		   (if (singleton? (get wf 'words))
-		       `(words ,(get wf 'words))
-		       '()))
+  `(wikidata ,id ,@(if (singleton? (get wf 'norms))
+		       `(norm ,(get wf 'norms))
+		       (if (singleton? (get wf 'words))
+			   `(words ,(get wf 'words))
+			   '()))
 	     ,@(if (singleton? (get wf 'gloss))
 		   `(gloss ,(get wf 'gloss))
 		   '())))
@@ -147,22 +195,15 @@
 (define (wikidata/ref arg . ignored)
   (cond ((not wikidata.pool) (error |WikdataNotConfigured|))
 	((oid? arg)
-	 (if (or (in-pool? arg wikidata.pool) (test arg 'wikitype))
+	 (if (or (in-pool? arg wikidata.pool) (test arg 'wikitype) (test arg 'wikid))
 	     arg
 	     (and (test arg 'wikidref)
-		  (try (pickoids (get arg 'wikidref))
-		       (tryif buildmap.table 
-			 (get buildmap.table (get arg 'wikidref)))
-		       (get wikids.index (get arg 'wikidref))
-		       #f))))
+		  (get-wikidref (get arg 'wikidref)))))
 	((string? arg)
-	 (try (tryif buildmap.table (get buildmap.table (upcase arg)))
-	      (get wikids.index (upcase arg))
-	      #f))
+	 (try (probe-wikidref (upcase arg)) #f))
 	((symbol? arg)
-	 (try (tryif buildmap.table (upcase (symbol->string arg)))
-	      (get wikids.index (upcase (symbol->string arg)))
-	      #f))))
+	 (try (probe-wikidref (upcase (symbol->string arg))) #f))
+	(else {})))
 
 (define wikid/ref wikidata/ref)
 
