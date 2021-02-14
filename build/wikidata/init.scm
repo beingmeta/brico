@@ -1,9 +1,9 @@
 ;;; -*- Mode: Scheme; Character-encoding: utf-8; -*-
 ;;; Copyright (C) 2005-2020 beingmeta, inc.  All rights reserved.
 
-(in-module 'brico/build/initwikid)
+(in-module 'brico/build/wikidata/init)
 
-(use-module '{texttools kno/reflect! logger varconfig text/stringfmts knodb})
+(use-module '{texttools kno/reflect logger varconfig text/stringfmts knodb})
 
 (module-export! '{wikid/init!})
 

@@ -21,10 +21,11 @@
 ;;; Configuring bricosource
 
 (define-init brico.source #f)
-(define brico.pool {})
-(define brico.index {})
-(define brico.indexes {})
+(define-init brico.pool {})
+(define-init brico.index {})
+(define-init brico.indexes {})
 (define brico.opts #[background #t readonly #t basename "brico.pool"])
+(define-init brico:readonly #t)
 
 (define wikidref.index {})
 (define wordnet.index #f)
@@ -721,7 +722,28 @@
    cap%wds cap%frame! low%wds low%frame!
    assign-isa assign-genls})
 
+;;;; Read/write configuration
+
+(define (set-brico:readonly! flag)
+  (knodb/readonly! brico.pool flag)
+  (knodb/readonly! brico.index flag)
+  (set! brico:readonly flag))
+(config-def! 'brico:readonly
+  (lambda (var (val))
+    (cond ((unbound? val) brico:readonly)
+	  ((and val brico:readonly) #f)
+	  ((not (or val brico:readonly)) #f)
+	  ((and brico.pool brico.index)
+	   (set-brico:readonly val))
+	  ((or brico.pool brico.index)
+	   (logwarn |IncompleteBricoDB|
+	     "Can't set readonly to " val " for brico.pool=" wikid.pool " brico.index=" wikid.index)
+	   (set-brico:readonly val))
+	  (else (set! brico:readonly val)))))
+
 ;;;; Setup config
+
+(propconfig! brico:background brico.opts 'background)
 
 (define (setup-brico pool (opts #f))
   (and (pool? pool) (equal? (pool-base pool) @1/0)
@@ -738,14 +760,61 @@
 	 (set! norms.index (pick-indexes indexes spanish-norms))
 	 (set! aliases.index (pick-indexes indexes spanish-aliases))
 	 (set! brico.source (pool-source pool))
+	 (set-brico:readonly! brico:readonly)
 	 pool)))
-
-(propconfig! brico:background brico.opts 'background)
-(propconfig! brico:readonly brico.opts 'readonly)
 
 (define-init bricosource-configfn (knodb/configfn setup-brico brico.opts))
 (config-def! 'bricosource bricosource-configfn)
 (config-def! 'brico:source bricosource-configfn)
+
+;;;; BRICO load hooks (not yet implemented)
+
+#|
+(define brico-onload '())
+(define brico-onloaded '())
+
+(define (addfn fn list (replace #f))
+  "Returns #f if fn wasn't added to list, otherwise returns "
+  "the updated list."
+  (if (position fn list) #f
+      (let ((name (procedure-name fn))
+	    (module (procedure-module fn))
+	    (scan list)
+	    (found #f))
+	(while (and (not found) (pair? scan))
+	  (if (and (eq? name (procedure-name (car scan)))
+		   (eq? module (procedure-module (car scan))))
+	      (set! found scan)
+	      (set! scan (cdr scan))))
+	(if (and found replace)
+	    (begin (set-car! found fn) list)
+	    (and (not found) (cons fn list))))))
+
+(define (brico:onload-configfn var (val))
+  (cond ((unbound? val) brico-onload)
+	((and (applicable? val) (zero? (procedure-min-arity val)))
+	 (if brico.pool
+	     (let ((edited (addfn val brico-onload #f)))
+	       (when edited
+		 (set! brico-onload edited)
+		 (val))
+	       (if edited #t #f))
+	     (let ((edited (addfn val brico-onload #t)))
+	       (when edited (set! brico-onload edited))
+	       (if edited #t #f))))
+	(else (irritant val |NotAThunk| config-brico:onload))))
+
+(comment
+ (dolist (onload brico-onload)
+   (onerror (onload) 
+       (lambda (ex)
+	 (logerror |BricoConfig|
+	   "Error applying " onload " " ex)
+	 #f))))
+
+(config-def! 'brico:onload brico:onload-configfn)
+|#
+
 
 ;;;; For the compiler/optimizer
 

@@ -5,7 +5,7 @@
 (in-module 'brico/indexing)
 ;;; Functions for generating BRICO indexes
 
-(use-module '{brico texttools logger})
+(use-module '{knodb brico texttools logger})
 
 (define %nosubst '{indexinfer default-frag-window})
 
@@ -508,6 +508,11 @@
   (prefetch-oids! oids)
   (prefetch-expansions
    (qc oids) (qc genls partof memberof ingredientof)))
+
+;;; Endpoint for indexing BRICO+ frames
+
+(define (brico/index! f)
+  (index-concept (knodb/getindex f) f))
 
 ;;; EXPORTS
 

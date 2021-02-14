@@ -3,8 +3,9 @@
 
 (in-module 'brico/html)
 
-(use-module '{kno/reflect texttools})
-(use-module '{webtools xhtml xhtml/clickit i18n})
+(use-module '{kno/reflect texttools webtools})
+(use-module '{varconfig logger})
+(use-module '{xhtml xhtml/clickit i18n})
 (use-module '{brico brico/dterms brico/analytics})
 
 ;; We use these for languages (at least)

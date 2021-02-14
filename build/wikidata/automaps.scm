@@ -1,14 +1,30 @@
-(load-config "local.cfg")
-(use-module '{brico/build/wikidata brico/build/wikidmap binio})
-(dbctl {brico.pool wikid.pool 
-	(dbctl brico.index 'partitions)
-	(dbctl wikid.index 'partitions)}
-       'readonly #f)
+;;; -*- Mode: Scheme; Character-encoding: utf-8; -*-
+;;; Copyright (C) 2005-2020 beingmeta, inc.  All rights reserved.
 
-(when (config 'optimized #t)
-  (optimize! '{brico brico/wikid brico/indexing
-	       brico/build/wikidata brico/build/wikidmap
-	       engine}))
+(in-module 'brico/build/wikidata/automaps)
+
+(when (file-exists? "local.cfg") (load-config "local.cfg"))
+      
+(use-module '{logger varconfig binio engine knodb})
+(use-module '{brico brico/wikid
+	      brico/build/wikidata brico/build/wikidata/map})
+
+(module-export! '{main})
+(module-export! '{import-occupation})
+(module-export! 
+ '{import-actors
+   import-lawyers
+   import-musicians
+   import-diplomats
+   import-politicians
+   import-occupations
+   import-war-and-peace})
+
+(define (make-brico-writable)
+  (dbctl {brico.pool wikid.pool 
+	  (dbctl brico.index 'partitions)
+	  (dbctl wikid.index 'partitions)}
+	 'readonly #f))
 
 (define (get-specls wf)
   (let ((all wf)
@@ -284,13 +300,17 @@
   (do-choices (wf (getkeys wikidata-treaty-maps))
     (import-isa-type wf (get wikidata-treaty-maps wf) [lower #f])))
 
-(optimize!)
-
 (define (main (importer (config 'importer)))
   (unless (symbol? importer) (set! importer (getsym importer)))
   (when (and importer (symbol-bound? importer))
     ((eval importer)))
   (commit))
+
+(when (config 'optimized #f)
+  (optimize! '{brico brico/wikid brico/indexing
+	       brico/build/wikidata brico/build/wikidmap
+	       engine})
+  (optimize!))
 
 #|
 (wikidmap! 

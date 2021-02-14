@@ -17,6 +17,26 @@
 (define-init wikid.index #f)
 (define-init wikid.indexes #f)
 (define-init wikid.opts #[background #t readonly #t basename "wikid.pool"])
+(define-init wikid:readonly #t)
+
+;;; Read/write config
+
+(define (set-wikid:readonly! flag)
+  (knodb/readonly! wikid.pool flag)
+  (knodb/readonly! wikid.index flag)
+  (set! wikid:readonly flag))
+(config-def! 'wikid:readonly
+  (lambda (var (val))
+    (cond ((unbound? val) wikid:readonly)
+	  ((and val wikid:readonly) #f)
+	  ((not (or val wikid:readonly)) #f)
+	  ((and wikid.pool wikid.index) (set-wikid:readonly val))
+	  ((or wikid.pool wikid.index) 
+	   (logwarn |IncompleteWikiDB|
+	     "Can't set readonly to " val " for wikid.pool=" wikid.pool " wikid.index=" wikid.index))
+	  (else (set! wikid:readonly val)))))
+
+;;; WIKID setup
 
 (define (setup-wikid pool (opts wikid.opts))
   (and (pool? pool) (eq? (pool-base pool) @1/8000000)
@@ -26,13 +46,13 @@
 	 (set! wikid.index (pool/getindex pool))
 	 (set! wikid.indexes indexes)
 	 (set! wikid.source (pool-source pool))
+	 (set-wikid:readonly! wikid:readonly)
 	 pool)))
+
+(propconfig! 'wikid:background wikid.opts 'background)
 
 (define-init wikidsource-configfn
   (knodb/configfn setup-wikid wikid.opts))
-
-(propconfig! 'wikid:background wikid.opts 'background)
-(propconfig! 'wikid:readonly wikid.opts 'readonly)
 
 (config-def! 'wikid:source wikidsource-configfn)
 (config-def! 'wikidsource wikidsource-configfn)

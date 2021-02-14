@@ -3,10 +3,11 @@
 
 (in-module 'brico/build/wikidata)
 
-(use-module '{logger webtools varconfig libarchive texttools
-	      brico text/stringfmts})
+(use-module '{webtools libarchive texttools})
+(use-module '{logger varconfig text/stringfmts})
 (use-module '{knodb knodb/branches knodb/typeindex 
 	      knodb/flexindex})
+(use-module '{brico})
 
 (module-export! '{wikidata.dir
 		  wikidata.pool wikidata.index
@@ -23,18 +24,20 @@
 
 (define %loglevel %notice%)
 
-(define wikidata.dir #f)
+(define-init wikidata.dir #f)
 
-(define wikidata.pool #f)
-(define wikidata.index #f)
+(define-init wikidata.pool #f)
+(define-init wikidata.index #f)
 
-(define words.index #f)
-(define norms.index #f)
-(define has.index #f)
-(define props.index #f)
+(define-init words.index #f)
+(define-init norms.index #f)
+(define-init has.index #f)
+(define-init props.index #f)
 
-(define newprops.index #f)
+(define-init newprops.index #f)
 (define-init propmaps.table (make-hashtable))
+
+(define-init wikidata:readonly #f)
 
 (define wikidata-build #f)
 
@@ -113,7 +116,9 @@
       (store! table (upcase (get prop '{wikid wikidref})) prop)))
 
   (set! wikidata.index
-    (make-aggregate-index {words.index norms.index has.index props.index newprops.index})))
+    (make-aggregate-index
+     {words.index norms.index has.index props.index newprops.index}
+     #[register #t])))
 
 (define (config-wikidata-source var (val #f))
   (cond ((not val) wikidata.dir)
@@ -125,7 +130,9 @@
 	  ((not (file-directory? val))
 	   (irritant val |NotADirectoryPath|))
 	  (else (set-wikidata-dir! val))))
+;; Synonyms
 (config-def! 'wikidata:source config-wikidata-source)
+(config-def! 'wikidatasource config-wikidata-source)
 (config-def! 'wikidata config-wikidata-source)
 
 (config-def! 'wikidata:build
