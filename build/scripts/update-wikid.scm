@@ -10,9 +10,9 @@
 
 (defambda (update-wikidata batch batch-state loop-state task-state)
   (prefetch-oids! batch)
-  (prefetch-oids! (pickoids (get wikids.index (get batch 'wikidref))))
+  (prefetch-oids! (pickoids (get-wikidref (get batch 'wikidref))))
   (do-choices (f batch)
-    (wikid/copy! (get wikids.index (get f 'wikidref)) f
+    (wikid/copy! (get-wikidref (get f 'wikidref)) f
 		 #f #f)))
 
 (define (update-all)
