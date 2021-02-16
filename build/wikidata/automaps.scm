@@ -6,8 +6,7 @@
 (when (file-exists? "local.cfg") (load-config "local.cfg"))
       
 (use-module '{logger varconfig binio engine knodb})
-(use-module '{brico brico/wikid
-	      brico/build/wikidata brico/build/wikidata/map})
+(use-module '{brico brico/wikid brico/build/wikidata brico/build/wikidata/map})
 
 (module-export! '{main})
 (module-export! '{import-occupation})
@@ -47,7 +46,7 @@
 	     (wikid/import! item [lower #t] #f
 			    [@?genls bf sensecat (get bf 'sensecat)])))
 	  ((ambiguous? candidates)
-	   (logwarn |Wikidmap| 
+	   (logwarn |Wikidmap|
 	     "Ambiguous wikidata item " item
 	     (do-choices (c candidates)
 	       (printout "\n\t" c)))))))
@@ -301,14 +300,25 @@
     (import-isa-type wf (get wikidata-treaty-maps wf) [lower #f])))
 
 (define (main (importer (config 'importer)))
-  (unless (symbol? importer) (set! importer (getsym importer)))
-  (when (and importer (symbol-bound? importer))
-    ((eval importer)))
-  (commit))
+  (config! 'brico:readonly #f)
+  (config! 'wikid:readonly #f)
+  (when importer
+    (unless (symbol? importer) (set! importer (getsym importer)))
+    (when (and importer (symbol-bound? importer))
+      ((eval importer))))
+  (unless importer
+    (import-actors)
+    (import-lawyers)
+    (import-musicians)
+    (import-diplomats)
+    (import-politicians)
+    (import-occupations)
+    (import-war-and-peace))
+  (knodb/commit))
 
 (when (config 'optimized #f)
   (optimize! '{brico brico/wikid brico/indexing
-	       brico/build/wikidata brico/build/wikidmap
+	       brico/build/wikidata brico/build/wikidata/map
 	       engine})
   (optimize!))
 
