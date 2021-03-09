@@ -31,7 +31,7 @@
     (cond ((unbound? val) wikid:readonly)
 	  ((and val wikid:readonly) #f)
 	  ((not (or val wikid:readonly)) #f)
-	  ((and wikid.pool wikid.index) (set-wikid:readonly val))
+	  ((and wikid.pool wikid.index) (set-wikid:readonly! val))
 	  ((or wikid.pool wikid.index) 
 	   (logwarn |IncompleteWikiDB|
 	     "Can't set readonly to " val " for wikid.pool=" wikid.pool " wikid.index=" wikid.index))

@@ -1,7 +1,7 @@
 #!/bin/sh
 POOL=${1:-./brico/brico.pool}
 INPUTS=$(dirname ${POOL})
-OUTPUT_DIR="${INPUTS}_fresh"
+OUTPUT_DIR="fresh/${INPUTS}"
 OUTPUTS=${2:-${OUTPUT_DIR}}
 if [ ! -d ${OUTPUTS} ]; then
     mkdir ${OUTPUTS};
@@ -19,6 +19,4 @@ index/index_lattice.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOU
 index/index_relations.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
 index/index_languages.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
 index/index_termlogic.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
-if [ ! -d ${INPUTS}/saved ]; then mkdir ${INPUTS}/saved; fi &&
-mv ${INPUTS}/*.index ${INPUTS}/saved &&
 mv ${OUTPUTS}/*.index ${INPUTS}

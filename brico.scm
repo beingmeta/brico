@@ -729,17 +729,18 @@
   (knodb/readonly! brico.pool flag)
   (knodb/readonly! brico.index flag)
   (set! brico:readonly flag))
+
 (config-def! 'brico:readonly
   (lambda (var (val))
     (cond ((unbound? val) brico:readonly)
 	  ((and val brico:readonly) #f)
 	  ((not (or val brico:readonly)) #f)
 	  ((and brico.pool brico.index)
-	   (set-brico:readonly val))
+	   (set-brico:readonly! val))
 	  ((or brico.pool brico.index)
 	   (logwarn |IncompleteBricoDB|
 	     "Can't set readonly to " val " for brico.pool=" wikid.pool " brico.index=" wikid.index)
-	   (set-brico:readonly val))
+	   (set! brico:readonly val))
 	  (else (set! brico:readonly val)))))
 
 ;;;; Setup config
