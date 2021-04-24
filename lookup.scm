@@ -9,7 +9,7 @@
 ;;;  natural language terms into BRICO concepts.
 
 (use-module 'brico)
-(use-module '{texttools kno/reflect})
+(use-module '{texttools reflection})
 (use-module '{morph morph/en})
 (use-module '{brico/maprules kno/rulesets varconfig logger})
 

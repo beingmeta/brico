@@ -5,7 +5,7 @@
 ;;; Managing custom maps into BRICO
 (in-module 'brico/maprules)
 
-(use-module 'kno/reflect)
+(use-module 'reflection)
 
 (module-export! '{custom-map-name custom-map-language custom-map-handler})
 (module-export! '{custom-get conform-maprule})

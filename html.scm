@@ -4,7 +4,7 @@
 
 (in-module 'brico/html)
 
-(use-module '{kno/reflect texttools webtools})
+(use-module '{reflection texttools webtools})
 (use-module '{varconfig logger})
 (use-module '{xhtml xhtml/clickit i18n})
 (use-module '{brico brico/dterms brico/analytics})
