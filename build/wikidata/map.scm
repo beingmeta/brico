@@ -82,30 +82,43 @@
 (define (wikid/src f)
   (wikid/ref (get f 'wikidref)))
 
-(define (wikidmatch wikidata (spec #f) (opts #f))
+(define (getmap.norms wikidata (spec #f) (opts #f))
   (let* ((lower (getopt opts 'lower #f))
-	 (words {(get wikidata 'words) (get wikidata 'norms)})
-	 (candidates (?? en {words (tryif lower (downcase words))})))
+	 (words (get wikidata 'norms))
+	 (candidates (?? en_norms {words (tryif lower (downcase words))})))
     (when spec 
       (do-choices (slotid (getkeys spec))
 	(set! candidates (intersection candidates 
 				       (?? slotid (get spec slotid))))))
-    (reject candidates 'wikidref)))
+    candidates))
+(define (getmap.words wikidata (spec #f) (opts #f))
+  (let* ((lower (getopt opts 'lower #f))
+	 (words (get wikidata 'norms))
+	 (candidates (?? en_norms {words (tryif lower (downcase words))})))
+    (when spec 
+      (do-choices (slotid (getkeys spec))
+	(set! candidates (intersection candidates 
+				       (?? slotid (get spec slotid))))))
+    candidates))
 
-(defambda (wikid/getmap wikidframes (spec #f) (opts #f))
-  (for-choices (wikidframe {(pickoids wikidframes)
-			    (wikid/ref (pickstrings wikidframes))})
-    (try (?? 'wikidref (get wikidframe 'id))
-	 (let ((candidate (for-choices (spec spec)
-			     (wikidmatch wikidframe spec opts))))
-	   (when (singleton? candidate)
-	     (lognotice |WikidMap| 
-	       "Found existing " candidate " for " wikidframe)
-	     (wikidmap! candidate wikidframe opts))
-	   (cond ((singleton? candidate) candidate)
-		 ((and (fail? candidate) (getopt opts 'import #f))
-		  (wikid/import! wikidframes opts))
-		 (else candidate))))))
+(define (wikid/getmap wikidata (spec #f) (opts #f))
+  (try (getmap.norms wikidata spec opts)
+       (getmap.words wikidata spec opts)))
+
+;; (defambda (wikid/getmap wikidframes (spec #f) (opts #f))
+;;   (for-choices (wikidframe {(pickoids wikidframes)
+;; 			    (wikid/ref (pickstrings wikidframes))})
+;;     (try (?? 'wikidref (get wikidframe 'id))
+;; 	 (let ((candidate (for-choices (spec spec)
+;; 			     (wikidmatch wikidframe spec opts))))
+;; 	   (when (singleton? candidate)
+;; 	     (lognotice |WikidMap| 
+;; 	       "Found existing " candidate " for " wikidframe)
+;; 	     (wikidmap! candidate wikidframe opts))
+;; 	   (cond ((singleton? candidate) candidate)
+;; 		 ((and (fail? candidate) (getopt opts 'import #f))
+;; 		  (wikid/import! wikidframes opts))
+;; 		 (else candidate))))))
 
 (define (copy-lexslots wikid brico index opts)
   ;; We should use 'index' here

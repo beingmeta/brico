@@ -61,4 +61,4 @@
 
 (when (config 'optimize #t config:boolean)
   (optimize! '{brico engine fifo brico/indexing})
-  (optimize!))
+  (optimize-locals!))

@@ -1,11 +1,18 @@
 ;;; -*- Mode: Scheme; Character-encoding: utf-8; -*-
 ;;; Copyright (C) 2005-2020 beingmeta, inc.  All rights reserved.
 
-(in-module 'brico/build/wikidata/update)
+(in-module 'brico/build/wikidata/actions/update)
 
 (when (file-exists? "local.cfg") (load-config "local.cfg"))
 
-(use-module '{logger optimize engine})
+(define %optmods
+  '{brico brico/wikid brico/indexing
+    brico/build/wikidata brico/build/wikidata/map
+    brico/build/wikidata/automap
+    brico/build/wikidata/actions/update
+    engine})
+
+(use-module '{logger logctl optimize engine})
 (use-module '{brico brico/wikid})
 (use-module '{brico/build/wikidata brico/build/wikidata/map})
 
@@ -34,10 +41,5 @@
 
 (define main update-concepts)
 
-(when (config 'optimized #t)
-  (optimize! '{brico brico/wikid brico/indexing
-	       brico/build/wikidata brico/build/wikidata/map
-	       engine})
-  (use-module 'brico/optimized)
-  (optimize!))
+
 

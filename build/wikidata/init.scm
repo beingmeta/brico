@@ -4,7 +4,7 @@
 
 (in-module 'brico/build/wikidata/init)
 
-(use-module '{texttools kno/reflect logger varconfig text/stringfmts knodb})
+(use-module '{texttools reflection logger varconfig text/stringfmts knodb})
 
 (module-export! '{wikid/init!})
 

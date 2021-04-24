@@ -9,7 +9,7 @@
 		   brico.pool brico.index brico.indexes
 		   freqfns use-wordforms})
 
-(use-module '{texttools kno/reflect logger varconfig knodb knodb/config binio})
+(use-module '{texttools reflection logger varconfig knodb knodb/config binio})
 ;; For custom methods
 (use-module 'kno/rulesets)
 
@@ -768,6 +768,27 @@
 (define-init bricosource-configfn (knodb/configfn setup-brico brico.opts))
 (config-def! 'bricosource bricosource-configfn)
 (config-def! 'brico:source bricosource-configfn)
+
+(config-def! 'brico:dir
+  (defn (brico:dir.configfn var (val))
+    (cond ((unbound? val)
+	   (and brico.source (string? brico.source)
+		(file-exists? brico.source)
+		(dirname brico.source)))
+	  ((not (and (string? val) (directory? val)))
+	   (irritant val |InvalidDirectory| brico:dir.configfn))
+	  ((and brico.source (string? brico.source)
+		(equal? (realpath val) (realpath brico.source)))
+	   (if (equal? val brico.source)
+	       (loginfo |RedundantConfig|
+		 "BRICO:SOURCE is already configured at directory `" val "`'")
+	       (lognotice |RedundantConfig|
+		 "BRICO:SOURCE is already configured at directory `" val "`'"))
+	   #f)
+	  (else
+	   (logwarn |ConfigConflict|
+	     "BRICO:SOURCE is already configured at directory `" val "`'")
+	   #f))))
 
 ;;;; BRICO load hooks (not yet implemented)
 
