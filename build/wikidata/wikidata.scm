@@ -13,6 +13,7 @@
 (module-export! '{wikidata.dir
 		  wikidata.pool wikidata.index
 		  words.index norms.index has.index props.index wikidata.props
+		  newprops.index
 		  propmaps.table
 		  wikidata/ref wikid/ref
 		  wikidata/find wikid/find
@@ -106,6 +107,7 @@
 	       [indextype 'kindex size #mib create #t
 		readonly (not (config 'wikidata:build))
 		background #t
+		maxload 0.8
 		register #t]))
 
   (let ((props {(find-frames core.index 'type 'wikidprop) 
@@ -139,16 +141,11 @@
 (config-def! 'wikidata:build
   (lambda (var (val))
     (cond ((not (bound? val)) wikidata-build)
-	  ((not val)
-	   (set! wikidata-build #f)
-	   ;; (set! buildmap.table #f)
-	   )
-	  ((not wikidata.dir) (error |NoWikidataConfigured|))
+	  ((not val) (set! wikidata-build #f))
+	  ((not wikidata.dir)
+	   (set! wikidata-build #t))
 	  (wikidata-build wikidata-build)
-	  (else ;; (set! buildmap.table
-		;;   (knodb/make (mkpath wikidata.dir "wikids.logindex")
-		;; 	      [indextype 'logindex create #t]))
-		(set! wikidata-build #t)))))
+	  (else (error |WikidataAlreadyConfigured|)))))
 
 (define (wikidata/save!)
   (knodb/commit! {wikidata.pool wikidata.index brico.pool

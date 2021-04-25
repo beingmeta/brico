@@ -2,15 +2,15 @@
 ;;; Copyright (C) 2005-2020 beingmeta, inc.  All rights reserved.
 ;;; Copyright (C) 2020-2021 Kenneth Haase (ken.haase@alum.mit.edu)
 
-(in-module 'brico/build/wikidata/automaps)
+(in-module 'brico/build/wikidata/actions/mapnew)
 
 (when (file-exists? "local.cfg") (load-config "local.cfg"))
       
-(use-module '{logger varconfig binio engine knodb})
-(use-module '{brico brico/wikid brico/build/wikidata brico/build/wikidata/map})
+(use-module '{logger varconfig binio engine optimize text/stringfmts knodb})
+(use-module '{brico brico/wikid brico/build/wikidata
+	      brico/build/wikidata/map brico/build/wikidata/automap})
 
 (module-export! '{main})
-(module-export! '{import-occupation})
 (module-export! 
  '{import-actors
    import-lawyers
@@ -19,6 +19,12 @@
    import-politicians
    import-occupations
    import-war-and-peace})
+
+(define %optimize
+  '{brico brico/wikid brico/indexing
+    brico/build/wikidata brico/build/wikidata/map
+    brico/build/wikidata/automap brico/build/wikidata/actions/mapnew
+    engine})
 
 (define (make-brico-writable)
   (dbctl {brico.pool wikid.pool 
@@ -34,74 +40,6 @@
       (set! next (??  wikidata.index @?wikid_genls next)))
     all))
 
-(define (import-by-isa item wf bf (opts #f))
-  (let* ((spec [@?genls* bf])
-	 (known (?? 'wikidref (get item 'id)))
-	 (candidates (try known (wikid/getmap item spec (opt+ opts 'lower #t)))))
-    (cond ((exists? known))
-	  ((singleton? candidates)
-	   (logwarn |WikidMap| "Found new map for " item "\n   to " candidates))
-	  ((and (fail? candidates) (getopt opts 'import #t))
-	   (logwarn |WikidImport| 
-	     "Imported " item "\n   into "
-	     (wikid/import! item [lower #t] #f
-			    [@?genls bf sensecat (get bf 'sensecat)])))
-	  ((ambiguous? candidates)
-	   (logwarn |Wikidmap|
-	     "Ambiguous wikidata item " item
-	     (do-choices (c candidates)
-	       (printout "\n\t" c)))))))
-
-(define (import-isa-type wf bf (opts #f))
-  (do-choices (wf (if (getopt opts 'specls)
-		      (get-specls wf)
-		      wf))
-    (when (and (getopt opts 'newcats)
-	       (fail? (wikid/brico wf)))
-      (wikid/import! wf))
-    (if (config 'nthreads #t)
-	(engine/run (lambda (item) (import-by-isa item wf bf opts))
-	    (find-frames wikidata.index @?wikid_isa wf))
-	(do-choices (item (find-frames wikidata.index @?wikid_isa wf))
-	  (import-by-isa item wf bf opts)))))
-
-(define (import-isa wf (opts #f))
-  (do-choices (wf (if (getopt opts 'specls)
-		      (get-specls wf)
-		      wf))
-    (when (and (getopt opts 'newcats) (fail? (wikid/brico wf)))
-      (wikid/import! wf))
-    (let ((bf (wikid/brico wf))
-	  (items (find-frames wikidata.index @?wikid_isa wf)))
-      (when (exists? items)
-	(if (config 'nthreads #t)
-	    (engine/run (lambda (item) (import-by-isa item wf bf opts))
-		items)
-	    (do-choices (item items)
-	      (import-by-isa item wf bf opts))))))) 
-
-(define (import-by-genls item wf bf (opts #f))
-  (let* ((gspec [@?genls bf])
-	 (g2spec [@?genls* bf])
-	 (g3spec [@?genls* (get bf @?genls)])
-	 (known (?? 'wikidref (get item 'id)))
-	 (candidates (try known 
-			  (wikid/getmap item gspec (opt+ opts 'lower #t))
-			  (wikid/getmap item g2spec (opt+ opts 'lower #t))
-			  (wikid/getmap item g3spec (opt+ opts 'lower #t)))))
-    (cond ((exists? known))
-	  ((singleton? candidates)
-	   (logwarn |WikidMap| "Found new map for " item "\n   to " candidates))
-	  ((and (fail? candidates) (getopt opts 'import #t))
-	   (logwarn |WikidImport| 
-	     "Imported " item "\n   into "
-	     (wikid/import! item [lower #t] #f
-			    [@?genls bf sensecat (get bf 'sensecat)])))
-	  ((ambiguous? candidates)
-	   (logwarn |Wikidmap| 
-	     "Ambiguous wikidata item " item
-	     (do-choices (c candidates)
-	       (printout "\n\t" c)))))))
 
 (define (import-dogs)
  (import-isa-type 
@@ -139,39 +77,6 @@
   (import-isa-type 
    (wikidata/ref "Q7777573" "theatrical genre")
    @1/1b9b1(noun.communication "production")))
-
-(define (import-by-occupation item occupation isa (opts #f))
-  (let* ((spec [@?isa isa])
-	 (known (?? 'wikidref (get item 'id)))
-	 (candidates (try known (wikid/getmap item spec [lower #f]))))
-    (cond ((exists? known))
-	  ((singleton? candidates)
-	   (loginfo |WikidMap| "Found new map for " item "\n   to " candidates))
-	  ((fail? candidates)
-	   (lognotice |WikidImport| 
-	     "Imported " item "\n   into " (wikid/import! item [lower #f])))
-	  ((ambiguous? candidates)
-	   (logwarn |Wikidmap| 
-	     "Ambiguous wikidata item " item
-	     (do-choices (c candidates)
-	       (printout "\n\t" c)))))))
-
-(define (import-occupation occupation (isa) (opts #f))
-  (default! isa (?? 'wikidref (get occupation 'id)))
-  (unless (testopt opts 'lower #f) (set! opts (opt+ opts 'lower #f)))
-  (if (fail? occupation)
-      (logwarn |NoCognate| "No mapped BRICO concept for " occupation)
-      (let ((items (find-frames wikidata.index @?wikid_occupation occupation)))
-	(when (exists? items)
-	  (if (config 'nthreads #t)
-	      (engine/run (def (import-occupation item) (import-by-occupation item occupation isa opts))
-		  items)
-	      (do-choices (item items)
-		(import-by-occupation item occupation isa opts)))
-	  (knodb/commit! {wikid.pool (pool/getindexes wikid.pool)
-			  brico.pool (pool/getindexes brico.pool)})
-	  (commit)
-	  (swapout)))))
 
 (define (add-stage-actor)
   (wikid/import! (wikidata/ref "Q2259451" "stage actor") [pool brico.pool]))
@@ -311,12 +216,6 @@
     (import-occupations)
     (import-war-and-peace))
   (knodb/commit))
-
-(when (config 'optimized #t)
-  (optimize! '{brico brico/wikid brico/indexing
-	       brico/build/wikidata brico/build/wikidata/map
-	       engine})
-  (optimize!))
 
 #|
 (wikidmap! 
