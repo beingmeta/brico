@@ -8,7 +8,8 @@
 
 (use-module '{webtools libarchive texttools logger varconfig})
 (use-module '{io/filestream text/stringfmts optimize})
-(use-module '{kno/reflect kno/profile kno/mttools engine})
+(use-module '{kno/reflect kno/profile kno/mttools})
+(use-module '{engine engine/readfile})
 
 (use-module '{knodb knodb/branches knodb/typeindex knodb/flexindex})
 (use-module '{brico brico/build/wikidata})
@@ -159,24 +160,36 @@
 	   has.index)
 	  (logwarn |BadJSON| line)))))
 
+(define (setup)
+  (when (file-exists? "newread.cfg") (load-config "newread.cfg"))
+  (config-default! 'bricosource "brico")
+  (when (file-directory? "wikidata")
+    (config-default! 'wikidata "wikidata")
+    ;; Should this be conditional on something like wikidata.pool being writable?
+    (config! 'wikidata:build #t))
+  (unless (config 'wikidata) (config! 'wikidata "wikidata"))
+  (dbctl brico.pool 'readonly #f))
+
+(define (open-wikidata-file file)
+  (let ((in (open-input-file file)))
+    (getline in)
+    in))
+
 (define (main (maxitems #f)
 	      (threadcount (mt/threadcount (config 'nthreads #t)))
 	      (file (CONFIG 'INPUTFILE "latest-wikidata.json")))
-  (config! 'bricosource "brico")
-  (when (file-directory? "wikidata")
-    (config-default! 'wikidata (abspath "wikidata"))
-    ;; Should this be conditional on something like wikidata.pool being writable?
-    (config! 'wikidata:build #t))
-  (unless (config 'wikidata) (config! 'wikidata (abspath "wikidata")))
-  (dbctl brico.pool 'readonly #f)
-  (let* ((in (filestream/open file filestream-opts))
-	 (fillfn (slambda (n) (filestream/read/n in n)))
+  (setup)
+  (let* (;;(fillfn (slambda (n) (filestream/read/n in n)))
 	 (started (elapsed-time)))
-    (filestream/log! in)
-    (engine/run import-enginefn fillfn
-      `#[loop #[index ,wikidata.index
+    (engine/run import-enginefn engine/readfile/fillfn
+      `#[statefile ,(if wikidata.dir (mkpath wikidata.dir "read.state") "read.state")
+
+	 loop #[index ,wikidata.index
 		newprops.index ,newprops.index
 		has.index ,has.index]
+	 infile ,(config 'infile "latest-all.json")
+	 openfn ,open-wikidata-file
+	 statefile "wikidread.state"
 	 branchindexes index
 	 maxitems ,maxitems
 
@@ -197,21 +210,15 @@
 
 	 loopdump ,(config 'loopdump #f)
 	 logchecks #t
-	 logfns {,engine/log ,engine/logrusage 
-		 ,(lambda () (filestream/log! in))}
-	 logfreq ,(config 'logfreq 30)])
-    (filestream/save! in)))
+	 logfns {,engine/log ,engine/logrusage}
+	 logfreq ,(config 'logfreq 30)])))
   
 (when (config 'optimized #t)
   (optimize! '{knodb knodb/flexpool knodb/flexindex knodb/adjuncts 
 	       knodb/branches knodb/typeindex
 	       brico brico/indexing brico/build/wikidata
+	       engine engine/readfile
 	       io/filestream})
-  (logwarn |Optimized| 
-    "Modules " '{knodb knodb/flexpool knodb/flexindex knodb/adjuncts 
-		 knodb/branches knodb/typeindex
-		 brico brico/indexing brico/build/wikidata
-		 io/filestream})
   (optimize!)
   (logwarn |Optimized| (get-source)))
 

@@ -4,9 +4,11 @@
 
 (in-module 'brico/build/wikidata/actions/read)
 
+(when (file-exists? "read.cfg") (load-config "read.cfg"))
+
 (use-module '{webtools libarchive texttools logger varconfig})
 (use-module '{io/filestream text/stringfmts optimize})
-(use-module '{kno/reflect kno/profile kno/mttools})
+(use-module '{kno/reflect kno/profile kno/mttools engine})
 
 (use-module '{knodb knodb/branches knodb/typeindex knodb/flexindex})
 (use-module '{brico brico/build/wikidata})
@@ -32,8 +34,6 @@
 (define dochain #f)
 (varconfig! chain dochain config:boolean)
 
-(define-init chain (lambda args (logwarn |NoCHAIN| "Chain primitive not available")))
-
 ;;; Reading data
 
 (define (skip-file-start port)
@@ -43,10 +43,6 @@
 (define filestream-opts
   [startfn skip-file-start
    readfn getline])
-
-(define (checkpoint in)
-  (wikidata/save!)
-  (filestream/save! in))
 
 ;;; Parsing the data
 
@@ -149,113 +145,68 @@
       (loginfo |Imported| id " ==> " ref))
     ref))
 
-;;; Reporting
+(define (import-enginefn batch batch-state loop-state task-state)
+  (local index (try (get batch-state 'index) (get loop-state 'index)))
+  (local newprops (get loop-state 'newprops.index))
+  (local has.index (get loop-state 'has.index))
+  (doseq (line batch)
+    (let* ((json (onerror (jsonparse line 'symbolize) #f))
+	   (id (and json (get json 'id))))
+      (if json
+	  (import-wikid-item
+	   json
+	   (if (has-prefix id {"P" "p"}) newprops index)
+	   has.index)
+	  (logwarn |BadJSON| line)))))
 
-(define (runstats (usage (rusage)))
-  (stringout "CPU: " (inexact->string (get usage 'cpu%) 2) "%"
-    ", load: " (doseq (v (get usage 'loadavg) i)
-	       (printout (if (> i 0) " ") (inexact->string v 2)))
-    ", resident: " ($bytes (get usage 'memusage))
-    ", virtual: " ($bytes (get usage 'vmemusage))))
-
-(define (read-loop in (duration 60) (index wikidata.index) (has.index has.index))
-  (let ((branch (index/branch index))
-	(started (elapsed-time))
-	(saved (elapsed-time)))
-    (while (< (elapsed-time started) duration)
-      (let* ((line (filestream/read in))
-	     (item (and (satisfied? line) (string? line)
-			(jsonparse line 'symbolize))))
-	(debug%watch "READ-LOOP" line item)
-	(when item
-	  (import-wikid-item item branch has.index)
-	  (when  (and (> (elapsed-time saved) 10)
-		      (zero? (random 500)))
-	    (branch/commit! branch)
-	    (set! saved (elapsed-time)))))
-      (when (filestream/done? in) (break)))
-    (branch/commit! branch)))
-
-(define (thread-loop in (threadcount #t) (duration 60) 
-		     (index wikidata.index) (has.index has.index))
-  (let ((threads {}))
-    (dotimes (i (mt/threadcount threadcount))
-      (set+! threads (thread/call read-loop in duration index has.index)))
-    (thread/join threads)))
-
-(define (dobatch in (threadcount #t) (duration 120) 
-		 (index wikidata.index) (has.index has.index))
-  (let ((start-count (filestream-itemcount in))
-	(start-time (elapsed-time))
-	(before (and (reflect/profiled? filestream/read)
-		     (profile/getcalls filestream/read))))
-    (if threadcount
-	(thread-loop in threadcount duration index has.index)
-	(let ((started (elapsed-time))
-	      (saved (elapsed-time)))
-	  (while (< (elapsed-time started) duration)
-	    (let* ((entry (filestream/read in #t))
-		   (line (cdr entry))
-		   (count (car entry))
-		   (item (and (satisfied? line) (string? line)
-			      (jsonparse line 'symbolize))))
-	      (when item
-		(import-wikid-item item index has.index)))
-	    (when (filestream/done? in) (break)))))
-    (let ((cur-count (filestream-itemcount in)))
-      (lognotice |Saving|
-	"wikidata after processing "
-	($count (- cur-count start-count) "item") " in "
-	(secs->string (elapsed-time start-time)) 
-	" (" ($rate (- cur-count start-count) (elapsed-time start-time))
-	" items/sec) -- "
-	(runstats)))
-    (when before
-      (let ((cur (profile/getcalls filestream/read)))
-	(lognotice |ReadProfile|
-	  "After " (secs->string (elapsed-time start-time)) 
-	  " filestream/read took "
-	  (secs->string (- (profile/time cur) (profile/time before)))
-	  " (clock), "
-	  (secs->string (- (profile/utime cur) (profile/utime before)))
-	  " (user)" 
-	  (secs->string (- (profile/stime cur) (profile/stime before)))
-	  " (system) across "
-	  ($count (- (profile/ncalls cur) (profile/ncalls before)) "call")
-	  " interrupted by "
-	  ($count (- (profile/waits cur) (profile/waits before)) "wait") )))
-    (checkpoint in)
-    (clearcaches)
-    (filestream/log! in '(overall))))
-
-(define (main (file "latest-wikidata.json") 
-	      (secs (config 'cycletime 120))
-	      (cycles (config 'cycles 10))
-	      (threadcount (mt/threadcount (config 'nthreads #t))))
-  (config! 'bricosource "brico")
+(define (setup)
+  (when (file-exists? "read.cfg") (load-config "read.cfg"))
+  (config-default! 'bricosource "brico")
   (when (file-directory? "wikidata")
-    (config-default! 'wikidata (abspath "wikidata"))
+    (config-default! 'wikidata "wikidata")
     ;; Should this be conditional on something like wikidata.pool being writable?
     (config! 'wikidata:build #t))
-  (unless (config 'wikidata) (config! 'wikidata (abspath "wikidata")))
-  (let ((in (filestream/open file filestream-opts))
-	(dochain (and (bound? chain) (config 'chain #t config:boolean)))
-	(started (elapsed-time)))
+  (unless (config 'wikidata) (config! 'wikidata "wikidata"))
+  (dbctl brico.pool 'readonly #f))
+
+(define (main (maxitems #f)
+	      (threadcount (mt/threadcount (config 'nthreads #t)))
+	      (file (CONFIG 'INPUTFILE "latest-wikidata.json")))
+  (setup)
+  (let* ((in (filestream/open file filestream-opts))
+	 (fillfn (slambda (n) (filestream/read/n in n)))
+	 (started (elapsed-time)))
     (filestream/log! in)
-    (dotimes (i cycles)
-      (lognotice |Cycle| "Starting #" (1+ i) " of " cycles ": " (runstats))
-      (dobatch in threadcount secs)
-      (lognotice |Cycle| "Finished #" (1+ i) "/" cycles " cycles, "
-		 "processed " ($count (filestream-itemcount in) "item") " in "
-		 (secs->string (elapsed-time started)))
-      (filestream/log! in '(overall)))
-    (checkpoint in)
-    (if (or (not dochain) (unbound? chain) (not (applicable? chain)))
-	(logwarn |NoChain| "Just exiting")
-	(unless (or (file-exists? "read-wikidata.stop") (filestream/done? in))
-	  (if chain
-	      (chain file secs cycles threadcount)
-	      (logcrit |NoChain| "Just exiting"))))))
+    (engine/run import-enginefn fillfn
+      `#[statefile ,(if wikidata.dir (mkpath wikidata.dir "read.state") "read.state")
+
+	 loop #[index ,wikidata.index
+		newprops.index ,newprops.index
+		has.index ,has.index]
+	 branchindexes index
+	 maxitems ,maxitems
+
+	 batchcall #t
+	 nthreads ,threadcount
+	 batchsize ,(config 'batchsize 1000)
+	 queuesize ,(config 'queuesize 10000)
+	 fillsize ,(config 'fillsize 5000)
+	 fillstep ,(config 'fillstep (if threadcount (* threadcount 15)))
+
+	 checkfreq ,(config 'checkfreq 60)
+	 checktests ,(engine/delta 'items (config 'checkcount 100000))
+	 checkpoint ,{wikidata.pool wikidata.index newprops.index has.index}
+	 stopfns
+	 ,(engine/test 'memusage (config 'maxmem {} config:bytes)
+		       'items (or maxitems {})
+		       'elapsed (config 'maxtime {} config:number))
+
+	 loopdump ,(config 'loopdump #f)
+	 logchecks #t
+	 logfns {,engine/log ,engine/logrusage 
+		 ,(lambda () (filestream/log! in))}
+	 logfreq ,(config 'logfreq 30)])
+    (filestream/save! in)))
   
 (when (config 'optimized #t)
   (optimize! '{knodb knodb/flexpool knodb/flexindex knodb/adjuncts 
