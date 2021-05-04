@@ -13,7 +13,7 @@
 (module-export! '{wikidata.dir
 		  wikidata.pool wikidata.index
 		  words.index norms.index has.index props.index wikidata.props
-		  newprops.index
+		  wikidprops.index
 		  propmaps.table
 		  wikidata/ref wikid/ref
 		  wikidata/find wikid/find
@@ -36,12 +36,11 @@
 (define-init has.index #f)
 (define-init props.index #f)
 
-(define-init newprops.index #f)
+(define-init wikidprops.index #f)
 (define-init propmaps.table (make-hashtable))
 
-(define-init wikidata:readonly #f)
-
-(define wikidata-build #f)
+(define-init wikidata-readonly #f)
+(define-init wikidata-build #f)
 
 (define-init set-wikidata-dir!
   (slambda (dir) (setup-wikidata dir)))
@@ -72,8 +71,9 @@
 	(flex/open-index (mkpath dir "words.flexindex")
 			 [indextype 'kindex size (* 6 1024 1024) create #t
 			  readonly (not (config 'wikidata:build))
+			  justfront (config 'wikidata:build)
 			  keyslot 'words register #t
-			  maxkeys (* 3 1024 1024)])))
+			  maxkeys (* 4 1024 1024)])))
 
   (set! norms.index
     (if (and (file-exists? (mkpath dir "norms.index"))
@@ -83,8 +83,9 @@
 	(flex/open-index (mkpath dir "norms.flexindex")
 			 [indextype 'kindex size (* 6 1024 1024) create #t
 			  readonly (not (config 'wikidata:build))
+			  justfront (config 'wikidata:build)
 			  keyslot 'norms register #t
-			  maxkeys (* 3 1024 1024)])))
+			  maxkeys (* 4 1024 1024)])))
 
   (set! props.index
     (if (and (file-exists? (mkpath dir "props.index"))
@@ -94,16 +95,17 @@
 	(flex/open-index (mkpath dir "props.flexindex")
 			 [indextype 'kindex size (* 6 1024 1024) create #t
 			  readonly (not (config 'wikidata:build))
-			  keyslot 'props register #t
-			  maxkeys (* 3 1024 1024)])))
+			  justfront (config 'wikidata:build)
+			  maxkeys (* 4 1024 1024)
+			  register #t])))
 
   (set! has.index
     (knodb/make (mkpath dir "hasprops.index")
 		[indextype 'kindex create #t keyslot 'has register #t]))
 
   ;; This is used to index newly created properties
-  (set! newprops.index 
-    (knodb/ref (mkpath dir "newprops.index")
+  (set! wikidprops.index 
+    (knodb/ref (mkpath (or (config 'brico:dir) dir) "wikidprops.index")
 	       [indextype 'kindex size #mib create #t
 		readonly (not (config 'wikidata:build))
 		background #t
@@ -111,7 +113,7 @@
 		register #t]))
 
   (let ((props {(find-frames core.index 'type 'wikidprop) 
-		(find-frames newprops.index 'type 'wikidprop)})
+		(find-frames wikidprops.index 'type 'wikidprop)})
 	(table propmaps.table))
     (prefetch-oids! props)
     (do-choices (prop props) 
@@ -120,7 +122,7 @@
 
   (set! wikidata.index
     (make-aggregate-index
-     {words.index norms.index has.index props.index newprops.index}
+     {words.index norms.index has.index props.index wikidprops.index}
      #[register #t])))
 
 (define (config-wikidata-source var (val #f))
@@ -146,18 +148,20 @@
 	   (set! wikidata-build #t))
 	  (wikidata-build wikidata-build)
 	  (else (error |WikidataAlreadyConfigured|)))))
+(varconfig! wikidata:readonly wikidata-readonly)
 
 (define (wikidata/save!)
   (knodb/commit! {wikidata.pool wikidata.index brico.pool
 		  words.index norms.index has.index props.index
-		  newprops.index}))
+		  wikidprops.index}))
 
 ;;; Wikidata refs
 
 (define (get-wikidref id)
   (if (has-prefix id "Q")
       (oid-plus @31c1/0 (string->number (slice id 1)))
-      (try (get propmaps.table (upcase id)) (make-new-prop (upcase id)))))
+      (try (get propmaps.table (upcase id))
+	   (make-new-prop (upcase id)))))
 
 (define (probe-wikidref id)
   (if (has-prefix id "Q")
@@ -169,8 +173,13 @@
       (get propmaps.table (upcase id))
       id))
 
+;;; Use define-init to avoid redefining with a new lock
 (define-init make-new-prop
-  (defsync (make-new-prop id) (try (?? 'wikid id) (alloc-new-prop id))))
+  (defsync (make-new-prop id)
+    (try (find-frames wikidprops.index 'wikid id)
+	 (find-frames brico.index 'wikid id)
+	 (?? 'wikid id)
+	 (alloc-new-prop id))))
 
 (define (alloc-new-prop id)
   (let ((f (frame-create brico.pool
@@ -179,8 +188,8 @@
 	     'wikid id 'wikidref id
 	     'source 'wikidata
 	     '%id (list 'WIKIDPROP id))))
-    (index-frame newprops.index f '{type wikidtype wikid wikidref source})
-    (index-frame newprops.index f 'has (getkeys f))
+    (index-frame wikidprops.index f '{type wikidtype wikid wikidref source})
+    (index-frame wikidprops.index f 'has (getkeys f))
     (store! propmaps.table id f)
     f))
 

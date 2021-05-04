@@ -131,6 +131,7 @@
 	(index-frame index ref 'norms {norms snorms fnorms}))
       (let* ((claims (convert-claims (get item 'claims)))
 	     (props (getkeys claims)))
+	;; Index claim props under a different composite key `(list prop)`
 	(index-frame has.index ref 'has (list props))
 	(store! ref 'claims claims)
 	(do-choices (prop props)
@@ -148,7 +149,7 @@
 
 (define (import-enginefn batch batch-state loop-state task-state)
   (local index (try (get batch-state 'index) (get loop-state 'index)))
-  (local newprops (get loop-state 'newprops.index))
+  (local wikidprops (get loop-state 'wikidprops.index))
   (local has.index (get loop-state 'has.index))
   (doseq (line batch)
     (let* ((json (onerror (jsonparse line 'symbolize) #f))
@@ -156,40 +157,40 @@
       (if json
 	  (import-wikid-item
 	   json
-	   (if (has-prefix id {"P" "p"}) newprops index)
-	   has.index)
+	   (qc index (tryif (has-prefix id {"P" "p"}) wikidprops))
+	   (qc has.index (tryif (has-prefix id {"P" "p"}) wikidprops)))
 	  (logwarn |BadJSON| line)))))
 
 (define (setup)
-  (when (file-exists? "newread.cfg") (load-config "newread.cfg"))
   (config-default! 'bricosource "brico")
   (when (file-directory? "wikidata")
     (config-default! 'wikidata "wikidata")
     ;; Should this be conditional on something like wikidata.pool being writable?
     (config! 'wikidata:build #t))
   (unless (config 'wikidata) (config! 'wikidata "wikidata"))
-  (dbctl brico.pool 'readonly #f))
+  (dbctl brico.pool 'readonly #f)
+  (dbctl wikidprops.index 'readonly #f))
 
 (define (open-wikidata-file file)
   (let ((in (open-input-file file)))
     (getline in)
     in))
 
-(define (main (maxitems #f)
-	      (threadcount (mt/threadcount (config 'nthreads #t)))
-	      (file (CONFIG 'INPUTFILE "latest-wikidata.json")))
-  (setup)
-  (let* (;;(fillfn (slambda (n) (filestream/read/n in n)))
+(define (runloop (maxitems #f)
+		 (threadcount (mt/threadcount (config 'nthreads #t)))
+		 (file (CONFIG 'INPUTFILE "latest-wikidata.json")))
+  (let* ((statefile (if wikidata.dir (mkpath wikidata.dir "read.state") "read.state"))
 	 (started (elapsed-time)))
     (engine/run import-enginefn engine/readfile/fillfn
-      `#[statefile ,(if wikidata.dir (mkpath wikidata.dir "read.state") "read.state")
+      `#[statefile ,statefile
+	 stopfile "read.stop"
+	 donefile "read.done"
 
 	 loop #[index ,wikidata.index
-		newprops.index ,newprops.index
+		wikidprops.index ,wikidprops.index
 		has.index ,has.index]
 	 infile ,(config 'infile "latest-all.json")
 	 openfn ,open-wikidata-file
-	 statefile "wikidread.state"
 	 branchindexes index
 	 maxitems ,maxitems
 
@@ -198,11 +199,11 @@
 	 batchsize ,(config 'batchsize 1000)
 	 queuesize ,(config 'queuesize 10000)
 	 fillsize ,(config 'fillsize 5000)
-	 fillstep ,(config 'fillstep (if threadcount (* threadcount 15)))
+	 fillstep ,(config 'fillstep (if threadcount (* threadcount 15) 100))
 
 	 checkfreq ,(config 'checkfreq 60)
 	 checktests ,(engine/delta 'items (config 'checkcount 100000))
-	 checkpoint ,{wikidata.pool wikidata.index newprops.index has.index}
+	 checkpoint ,{wikidata.pool brico.pool wikidata.index wikidprops.index has.index}
 	 stopfns
 	 ,(engine/test 'memusage (config 'maxmem {} config:bytes)
 		       'items (or maxitems {})
@@ -210,8 +211,15 @@
 
 	 loopdump ,(config 'loopdump #f)
 	 logchecks #t
-	 logfns {,engine/log ,engine/logrusage}
+	 logfns {,engine/log ,engine/logrusage ,engine/readfile/log}
 	 logfreq ,(config 'logfreq 30)])))
+
+(define (main (maxitems #f)
+	      (threadcount (mt/threadcount (config 'nthreads #t)))
+	      (file (CONFIG 'INPUTFILE "latest-wikidata.json")))
+  (setup)
+  (unless (and maxitems (= maxitems 0))
+    (runloop maxitems threadcount file)))
   
 (when (config 'optimized #t)
   (optimize! '{knodb knodb/flexpool knodb/flexindex knodb/adjuncts 
