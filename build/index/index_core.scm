@@ -138,5 +138,5 @@
 
 (when (config 'optimize #t config:boolean)
   (optimize! '{brico brico/indexing knodb/tinygis fifo engine})
-  (optimize!))
+  (optimize-locals!))
 

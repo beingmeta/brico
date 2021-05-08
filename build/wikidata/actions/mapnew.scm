@@ -20,7 +20,7 @@
    import-occupations
    import-war-and-peace})
 
-(define %optimize
+(define %optmods
   '{brico brico/wikid brico/indexing
     brico/build/wikidata brico/build/wikidata/map
     brico/build/wikidata/automap brico/build/wikidata/actions/mapnew

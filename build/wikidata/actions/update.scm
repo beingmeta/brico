@@ -5,7 +5,7 @@
 
 (when (file-exists? "local.cfg") (load-config "local.cfg"))
 
-(define %optimize
+(define %optmods
   '{brico brico/wikid brico/indexing
     brico/build/wikidata brico/build/wikidata/map
     brico/build/wikidata/automap

@@ -29,5 +29,5 @@
 	       brico/build/wikidata brico/build/wikidata/map
 	       engine})
   (use-module 'brico/optimized)
-  (optimize!))
+  (optimize-locals!))
 

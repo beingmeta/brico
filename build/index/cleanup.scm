@@ -223,5 +223,5 @@
 
 (optimize! 'kno/mttools 'brico 'brico/indexing 'audit)
 (optimize! 'morph 'morph/en 'morph/es 'morph/fr)
-(optimize!)
+(optimize-locals!)
 
