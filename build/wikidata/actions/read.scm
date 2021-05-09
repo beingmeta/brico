@@ -229,7 +229,7 @@
 	       brico brico/indexing brico/build/wikidata
 	       engine engine/readfile
 	       io/filestream})
-  (optimize!)
+  (optimize-locals!)
   (logwarn |Optimized| (get-source)))
 
 (when (config 'profiling #f)

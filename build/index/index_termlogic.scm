@@ -118,8 +118,8 @@
 	(apply chain "PHASE2=yes" names))))
 
 (optimize! '{brico engine fifo brico/indexing})
-(optimize!)
+(optimize-locals!)
 
 (when (config 'optimize #t config:boolean)
   (optimize! '{brico engine fifo brico/indexing})
-  (optimize!))
+  (optimize-locals!))

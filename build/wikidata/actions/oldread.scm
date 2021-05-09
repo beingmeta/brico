@@ -218,7 +218,7 @@
 		 knodb/branches knodb/typeindex
 		 brico brico/indexing brico/build/wikidata
 		 io/filestream})
-  (optimize!)
+  (optimize-locals!)
   (logwarn |Optimized| (get-source)))
 
 (when (config 'profiling #f)
