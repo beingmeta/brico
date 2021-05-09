@@ -8,7 +8,7 @@
 
 (use-module '{webtools libarchive texttools logger varconfig})
 (use-module '{io/filestream text/stringfmts optimize})
-(use-module '{kno/reflect kno/profile kno/mttools})
+(use-module '{kno/reflect kno/profile kno/mttools kno/statefiles})
 (use-module '{engine engine/readfile})
 
 (use-module '{knodb knodb/branches knodb/typeindex knodb/flexindex})
@@ -180,7 +180,9 @@
 		 (threadcount (mt/threadcount (config 'nthreads #t)))
 		 (file (CONFIG 'INPUTFILE "latest-wikidata.json")))
   (let* ((statefile (if wikidata.dir (mkpath wikidata.dir "read.state") "read.state"))
+	 (state (tryif (file-exists? statefile) (statefile/read statefile)))
 	 (started (elapsed-time)))
+    (config! 'appid (glom "read#" (1+ (try (get state 'cycles) 0))))
     (engine/run import-enginefn engine/readfile/fillfn
       `#[statefile ,statefile
 	 stopfile "read.stop"
