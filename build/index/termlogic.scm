@@ -3,7 +3,7 @@
 
 (in-module 'brico/build/index/termlogic)
 
-(use-module '{texttools varconfig logger optimize text/stringfmts engine})
+(use-module '{texttools varconfig logger optimize text/stringfmts knodb engine})
 (use-module 'brico/build/index)
 (use-module '{brico brico/indexing})
 
