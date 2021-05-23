@@ -8,8 +8,7 @@
 (use-module '{brico brico/wikid brico/build/wikidata brico/build/wikidata/map})
 
 (module-export! '{import-by-isa import-isa-type import-isa import-by-genls
-		  import-by-occupation import-occupation
-})
+		  import-by-occupation import-occupation})
 
 (define (get-specls wf)
   (let ((all wf)
@@ -83,12 +82,12 @@
   (let* ((known (?? 'wikidref (get item 'id))))
     (when (exists? known)  (lognotice |Found| known " for " item " genls* " bf))
     (try (tryif (not (getopt opts 'skipknown)) known)
-	 (let ((gspec [@?genls bf])
-	       (g2spec [@?genls* bf])
-	       (g3spec [@?genls* (get bf @?genls)])
-	       (candidates (try (wikid/getmap item gspec (opt+ opts 'lower #t))
-				(wikid/getmap item g2spec (opt+ opts 'lower #t))
-				(wikid/getmap item g3spec (opt+ opts 'lower #t)))))
+	 (let* ((gspec [@?genls bf])
+		(g2spec [@?genls* bf])
+		(g3spec [@?genls* (get bf @?genls)])
+		(candidates (try (wikid/getmap item gspec (opt+ opts 'lower #t))
+				 (wikid/getmap item g2spec (opt+ opts 'lower #t))
+				 (wikid/getmap item g3spec (opt+ opts 'lower #t)))))
 	   (cond ((and (fail? candidates) (getopt opts 'import #t)
 		       (not (or (getopt opts 'dryrun #t) (getopt opts 'skipknown #f))))
 		  (logwarn |WikidImport| 
@@ -110,13 +109,13 @@
 		  (logwarn |Wikidmap|
 		    "Ambiguous wikidata item " item
 		    " matches " ($count (|| candidates) "candidate")
-		    " based on \n" (listdata spec)))
+		    " based on \n" (listdata gspec)))
 		 ((ambiguous? candidates)
 		  (logwarn |Wikidmap|
 		    "Ambiguous wikidata item " item
 		    " matches " (|| candidates) " candidates: "
 		    (listdata candidates)
-		    "\n based on \n" (listdata spec)))
+		    "\n based on \n" (listdata gspec)))
 		 (else (fail)))))))
 
 (define (import-by-occupation item occupation isa (opts #f))
@@ -143,7 +142,7 @@
       (let ((items (find-frames wikidata.index @?wikid_occupation occupation)))
 	(when (exists? items)
 	  (if (config 'nthreads #t)
-	      (engine/run (def (import-occupation item) (import-by-occupation item occupation isa opts))
+	      (engine/run (defn (import-occupation item) (import-by-occupation item occupation isa opts))
 		  items)
 	      (do-choices (item items)
 		(import-by-occupation item occupation isa opts)))

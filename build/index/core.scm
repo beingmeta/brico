@@ -1,7 +1,9 @@
 #!/usr/bin/env knox
 ;;; -*- Mode: Scheme; -*-
 
-(load-component "common.scm")
+(in-module 'brico/build/index/core)
+
+(use-module 'brico/build/index)
 
 (poolctl brico.pool 'readonly #f)
 
@@ -61,13 +63,13 @@
     @1/94d47"Wordnet 3.1, Copyright 2011 Princeton University"
     wikidata})
 
-(defambda (indexer frames batch-state loop-state task-state)
+(defambda (core-indexer frames batch-state loop-state task-state)
   (let ((core.index (get batch-state 'core.index))
 	(wikidprops.index (get batch-state 'wikidprops.index))
 	(latlong.index (get batch-state 'latlong.index))
 	(wikidrefs.index (get batch-state 'wikidrefs.index))
 	(wordnet.index (get batch-state 'wordnet.index)))
-    (info%watch "INDEXER/thread"
+    (info%watch "CORE-INDEXER/thread"
       core.index wikidprops.index latlong.index wordnet.index)
     (prefetch-oids! frames)
     (do-choices (f frames)
@@ -86,6 +88,9 @@
 	     (index-brico core.index f)
 	     (index-latlong latlong.index f)
 	     (index-frame core.index f index-also)
+	     (when (or (test f 'source 'wikidata) (test f 'type 'wikidprop))
+	       (index-brico wikidprops.index f)
+	       (index-frame wikidprops.index f index-also))
 	     (index-wikid wikidprops.index f)
 	     (when (test f 'wikidref) (index-frame wikidrefs.index f 'wikidref)))
 	    ((test f 'type '{slot language lexslot kbsource})
@@ -108,7 +113,7 @@
 				      [register #t])))
     (commit pools) ;; Save updated INDEXES metadata on pools
     (info%watch "MAIN" core.index wikidprops.index latlong.index wordnet.index)
-    (engine/run indexer (pool-elts pools)
+    (engine/run core-indexer (pool-elts pools)
       `#[loop #[core.index ,core.index
 		wordnet.index ,wordnet.index
 		latlong.index ,latlong.index

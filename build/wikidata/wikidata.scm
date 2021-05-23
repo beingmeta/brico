@@ -13,7 +13,6 @@
 (module-export! '{wikidata.dir
 		  wikidata.pool wikidata.index
 		  words.index norms.index has.index props.index wikidata.props
-		  wikidprops.index
 		  propmaps.table
 		  wikidata/ref wikid/ref
 		  wikidata/find wikid/find
@@ -36,7 +35,6 @@
 (define-init has.index #f)
 (define-init props.index #f)
 
-(define-init wikidprops.index #f)
 (define-init propmaps.table (make-hashtable))
 
 (define-init wikidata-readonly #f)
@@ -104,14 +102,15 @@
 		[indextype 'kindex create #t keyslot 'has register #t]))
 
   ;; This is used to index newly created properties
-  (set! wikidprops.index 
-    (knodb/ref (mkpath (or (config 'brico:dir) dir) "wikidprops.index")
-	       [indextype 'kindex size #mib create #t
-		readonly (not (config 'wikidata:build))
-		background #t
-		maxload 0.8
-		register #t]))
-
+  (unless wikidprops.index
+    (let ((new (knodb/ref (mkpath (or (config 'brico:dir) dir) "wikidprops.index")
+			  [indextype 'kindex size #mib create #t
+			   readonly (not (config 'wikidata:build))
+			   background #t
+			   maxload 0.8
+			   register #t])))
+      (config! 'brico:wikidprops new)))
+  
   (let ((props {(find-frames core.index 'type 'wikidprop) 
 		(find-frames wikidprops.index 'type 'wikidprop)})
 	(table propmaps.table))

@@ -27,7 +27,7 @@
 (define (get-index f)
   (cond ((in-pool? f brico.pool) brico.index)
 	((in-pool? f wikid.pool) wikid.index)
-	(else (irritant |UnknownBricoPool| f))))
+	(else (irritant f |UnknownBricoPool|))))
 
 (defambda (unindex! index frame slot value)
   (unless skip-index (set! slot (intersection slot always-index)))

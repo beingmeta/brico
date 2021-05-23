@@ -22,7 +22,7 @@
   (do-choices (slotid misc-slotids)
     (index-frame index f slotid (pickoids (get f slotid)))))
 
-(defambda (indexer frames batch-state loop-state task-state)
+(defambda (relations-indexer frames batch-state loop-state task-state)
   (let* ((index (get loop-state 'index))
 	 (branch (index/branch index)))
     (prefetch-oids! frames)
@@ -37,7 +37,7 @@
 	 (isa-index (target-index "isa.index" #f pools))
 	 (index  (make-aggregate-index {relns-index isa-index}
 				       [register #t])))
-    (engine/run indexer (difference (pool-elts pools) (?? 'source @1/1) (?? 'status 'deleted))
+    (engine/run relations-indexer (difference (pool-elts pools) (?? 'source @1/1) (?? 'status 'deleted))
       `#[loop #[index ,index]
 	 batchsize 2000 batchrange 3
 	 checkfreq 15

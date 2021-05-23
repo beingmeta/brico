@@ -28,6 +28,9 @@
 (define brico.opts #[background #t readonly #t basename "brico.pool"])
 (define-init brico:readonly #t)
 
+(define-init wikidprops.index #f)
+(varconfig! brico:wikidprops wikidprops.index knodb:index)
+
 (define wikidref.index {})
 (define wordnet.index #f)
 (define core.index {})
@@ -47,6 +50,7 @@
 (module-export!
  '{en.index en_norms.index en_aliases.index
    words.index norms.index aliases.index 
+   wikidprops.index
    names.index})
 
 (module-export! '{core.index wikidref.index wordnet.index
@@ -755,6 +759,7 @@
 	 (set! brico.index (pool/getindex pool opts))
 	 (set! wikidref.index (pick-indexes indexes 'wikidref))
 	 (set! core.index (pick indexes index-source has-suffix "core.index"))
+	 (set! wikidprops.index (pick indexes index-source has-suffix "wikidprops.index"))
 	 (set! en.index (pick-indexes indexes en))
 	 (set! en_norms.index (pick-indexes indexes en_norms))
 	 (set! en_aliases.index (pick-indexes indexes en_aliases))
