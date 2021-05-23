@@ -1,7 +1,11 @@
 #!/usr/bin/env knox
 ;;; -*- Mode: Scheme; -*-
 
-(load-component "common.scm")
+(in-module 'brico/build/index/english)
+
+(use-module '{texttools varconfig logger optimize text/stringfmts engine})
+(use-module 'brico/build/index)
+(use-module '{brico brico/indexing})
 
 (define english @1/2c1c7)
 (define engloss @1/2ffbd)

@@ -3,7 +3,9 @@
 
 (in-module 'brico/build/index/core)
 
+(use-module '{texttools varconfig logger optimize text/stringfmts engine})
 (use-module 'brico/build/index)
+(use-module '{brico brico/indexing})
 
 (poolctl brico.pool 'readonly #f)
 

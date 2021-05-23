@@ -13,10 +13,10 @@ elif test -f ./brico/brico.pool; then
     export KNO_BRICOSOURCE=./brico/;
 fi
 rm -f ${OUTDIR}/*.index &&
-index/index_core.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
-index/index_english.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
-index/index_lattice.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
-index/index_relations.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
-index/index_languages.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
-index/index_termlogic.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
+index/core.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
+index/english.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
+index/lattice.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
+index/relations.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
+index/languages.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
+index/termlogic.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
 mv ${OUTPUTS}/*.index ${INPUTS}

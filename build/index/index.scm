@@ -5,7 +5,7 @@
 (use-module '{logger varconfig fifo engine knodb text/stringfmts ezrecords})
 (use-module '{knodb knodb/branches})
 
-(module-export! '{target-index})
+(module-export! '{target-index target-file getdbpool brico-pool-names})
 
 (config! 'cachelevel 2)
 (config! 'thread:logexit #f)
