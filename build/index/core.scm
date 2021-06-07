@@ -65,6 +65,12 @@
     @1/94d47"Wordnet 3.1, Copyright 2011 Princeton University"
     wikidata})
 
+(define wordnet-slotids
+  (choice '{type source has words hypernym hyponym sensecat
+	    sensekeys synsets verb-frames pertainym
+	    lex-fileno}
+	  '{has gloss %sensekeys}))
+
 (defambda (core-indexer frames batch-state loop-state task-state)
   (let ((core.index (get batch-state 'core.index))
 	(wikidprops.index (get batch-state 'wikidprops.index))
@@ -105,12 +111,12 @@
 (define (main . names)
   (config! 'appid  "index-core")
   (let* ((pools (getdbpool (try (elts names) brico-pool-names)))
-	 (core.index (target-index core-index #f pools))
+	 (core.index (target-index core-index [size #8mib] pools))
 	 (latlong.index (target-index latlong-index #[keyslot {lat long}] pools))
 	 (wordnet.index (tryif (overlaps? (pool-base pools) @1/0)
-			  (target-index wordnet-index #f pools)))
-	 (wikidrefs.index (target-index wikidrefs-index #[keyslot wikidref] pools))
-	 (wikidprops.index (target-index wikidprops-index #f pools))
+			  (target-index wordnet-index [keyslot wordnet-slotids] pools)))
+	 (wikidrefs.index (target-index wikidrefs-index #[keyslot wikidref size 2] pools))
+	 (wikidprops.index (target-index wikidprops-index [size 8] pools))
 	 (index (make-aggregate-index {core.index latlong.index wikidrefs.index}
 				      [register #t])))
     (commit pools) ;; Save updated INDEXES metadata on pools

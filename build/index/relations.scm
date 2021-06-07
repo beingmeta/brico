@@ -3,7 +3,7 @@
 
 (in-module 'brico/build/index/relations)
 
-(use-module '{texttools varconfig logger optimize text/stringfmts knodb engine})
+(use-module '{texttools varconfig logger optimize text/stringfmts knodb knodb/branches engine})
 (use-module 'brico/build/index)
 (use-module '{brico brico/indexing})
 

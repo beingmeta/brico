@@ -24,7 +24,10 @@
       "The specified output path " (write outdir) " isn't a directory")))
 (when (config 'checkdirs #t config:boolean) (check-dirs))
 
-(define (getdbpool arg) (knodb/ref arg))
+(define (getdbpool arg)
+  (let ((pool (knodb/ref arg)))
+    (dbctl )
+    pool))
 
 ;;(define misc-slotids (file->dtype (mkpath data-dir "miscslots.dtype")))
 

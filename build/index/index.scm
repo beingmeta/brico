@@ -28,7 +28,12 @@
       "The specified output path " (write outdir) " isn't a directory")))
 (when (config 'checkdirs #t config:boolean) (check-dirs))
 
-(define (getdbpool arg) (knodb/ref arg))
+(define (getdbpool arg)
+  (let((pool (knodb/ref arg)))
+    (do-choices (pool pool)
+      (dbctl pool 'metadata 'readonly #f)
+      (dbctl pool 'readonly #f))
+    pool))
 
 ;;(define misc-slotids (file->dtype (mkpath data-dir "miscslots.dtype")))
 
@@ -90,8 +95,18 @@
 			      `(#[register ,(getopt opts 'register #t)]
 				. ,opts)))))
 
+(defambda (get-index-size opts pools)
+  (let ((total-oids 0)
+	(size (getopt opts 'size (config 'INDEXSIZE 3))))
+    (do-choices (pool pools)
+      (set! total-oids (+ total-oids (pool-load pool))))
+    (set! total-oids (max total-oids #mib))
+    (if (or (inexact? size) (< size 100))
+	(->exact (ceiling (* size total-oids)))
+	size)))
+
 (defambda (target-index filename (opts #f) (pools #f) (size) (keyslot))
-  (default! size (getopt opts 'size (config 'INDEXSIZE (* 8 #mib))))
+  (default! size (get-index-size opts pools))
   (default! keyslot (getopt opts 'keyslot (config 'keyslot #f)))
   (when (not size) (set! size (* 8 #mib)))
   (unless (search "/" filename)
