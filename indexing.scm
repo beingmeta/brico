@@ -6,9 +6,14 @@
 (in-module 'brico/indexing)
 ;;; Functions for generating BRICO indexes
 
-(use-module '{knodb brico texttools logger})
+(use-module '{knodb brico texttools varconfig logger})
 
 (define %nosubst '{indexinfer default-frag-window})
+
+(define fix-wikid #t)
+(varconfig! 'brico:wikid:fix fix-wikid)
+(define wikid-fixers {})
+(varconfig! 'brico:wikid:fixers wikid-fixers)
 
 ;; When true, this assumes that the lattice has been indexed,
 ;;  so that closures can be computed based on their inverses
@@ -211,7 +216,7 @@
 
 (define (index-concept index concept)
   (index-brico index concept)  
-  (index-wikid index concept)  
+  (when (test concept 'wikidref) (index-wikid index concept))  
   (index-words index concept)
   (index-relations index concept)
   (index-refterms index concept)
@@ -322,9 +327,65 @@
       (let ((lang (get alias-map langid)))
 	(index-string index concept lang (get xlation langid))))))
 
+(define (get-timekeys value)
+  (let* ((stamp (get value 'time))
+	 (date (slice stamp 0 (position #\T stamp)))
+	 (time (and (has-prefix stamp {"+20" "+197" "+198" "+199"})
+		    (onerror (timestamp (slice stamp 1)) #f))))
+    {(slice date 0 (textmatcher '(+ (GREEDY #((ispunct) (isdigit+)))) date))
+     (gather {#("T" (isdigit+)) #("T" (isdigit+) ":" (isdigit+))} stamp)
+     (tryif time (get time 'timekeys))}))
+
+(define (parse-unit val)
+  (cond ((not (string? val)) (fail))
+	((equal? val "1") 'count)
+	((has-prefix val "http://www.wikidata.org/entity/")
+	 (?? 'wikidref (slice val 31)))
+	(else val)))
+
+(define (parse-globe val)
+  (cond ((not (string? val)) (fail))
+	((has-prefix val "http://www.wikidata.org/entity/")
+	 (?? 'wikidref (slice val 31)))
+	(else (fail))))
+
 (define (index-wikid index concept)
-  (index-frame index concept 
-    (pick (pickoids (getkeys concept)) 'source 'wikidata)))
+  (when (and fix-wikid (exists? wikid-fixers))
+    ((pick wikid-fixers applicable? concept) concept))
+  (do-choices (slot (pick (pickoids (getkeys concept)) 'source 'wikidata))
+    (when fix-wikid
+      (if (%test concept slot #f) (drop! concept slot #f))
+      ((get wikid-fixers slot) concept))
+    (do-choices (value (get concept slot))
+      (cond ((string? value)
+	     (index-frame index concept slot value))
+	    ((oid? value)
+	     (index-frame index concept slot {value (list value)}))
+	    ((timestamp? value)
+	     (index-frame index concept slot (get value 'timekeys)))
+	    ((not (table? value)))
+	    ((test value 'time)
+	     (index-frame index concept slot (get-timekeys value)))
+	    ((test value 'amount)
+	     (let ((amount (string->number (get value 'amount)))
+		   (unit (parse-unit (get value 'unit))))
+	       (when amount
+		 (if (exists? unit)
+		     (index-frame index concept slot (cons amount unit))
+		     (index-frame index concept slot amount)))))
+	    ((test value 'text)
+	     (let* ((text (get value 'text))
+		    (lang  (get value 'language))
+		    (langid (try (get language-map lang)
+				 {(tryif (position #\_ lang)
+				    (get language-map (slice lang 0 (position #\_ lang))))
+				  lang}))
+		    (stringvals {(stdstring text) (stdspace text)}))
+	       (index-frame index concept slot stringvals)
+	       (index-frame index concept slot (cons stringvals langid))))
+	    ;; For lat/long
+	    ((test value 'globe))
+	    (else)))))
 
 (define (getallvalues concept slotids)
   (choice (%get concept slotids)

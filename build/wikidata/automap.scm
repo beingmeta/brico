@@ -20,11 +20,16 @@
 
 (define (import-by-isa item wf bf (opts #f))
   (let* ((spec [@?genls* bf])
-	 (known (?? 'wikidref (get item 'id))))
+	 (known (?? 'wikidref (get item 'wikid))))
     (when (exists? known)  (lognotice |Found| known " for " item " genls* " bf))
     (try (tryif (not (getopt opts 'skipknown)) known)
-	 (let ((candidates (try known (wikid/getmap item spec (opt+ opts 'lower #t)))))
-	   (cond ((and (fail? candidates) (getopt opts 'import #t)
+	 (let* ((candidates (try known (wikid/getmap item spec (opt+ opts 'lower #t))))
+		(unmapped (reject candidates 'wikiref)))
+	   (cond ((and (exists? candidates) (fail? unmapped))
+		  (logwarn |WikidImport|
+		    ($count (|| candidates) "matches" "match") " for " )
+		  (fail))
+		 ((and (fail? candidates) (getopt opts 'import #t)
 		       (not (or (getopt opts 'dryrun #t) (getopt opts 'skipknown #f))))
 		  (logwarn |WikidImport| 
 		    "Imported " item "\n   into "
@@ -32,7 +37,7 @@
 				   [@?genls bf sensecat (get bf 'sensecat)])))
 		 ((and (singleton? candidates) 
 		       (test candidates 'wikidref)
-		       (not (test candidates 'wikidref (get item 'id))))
+		       (not (test candidates 'wikidref (get item 'wikid))))
 		  (logwarn |WikidMap|
 		    "Found existing concept " candidates " for " item 
 		    " already mapped to " (wikid/ref (get candidates 'wikidref))))
@@ -41,6 +46,11 @@
 		    "Found existing concept " candidates " for " item " isa " bf)
 		  (unless (not (or (getopt opts 'dryrun #t) (getopt opts 'skipknown #f)))
 		    (wikidmap! candidates item)))
+		 ((singleton? unmapped)
+		  (logwarn |WikidMap|
+		    "Found existing unmapped concept " candidates " for " item " isa " bf)
+		  (unless (not (or (getopt opts 'dryrun #t) (getopt opts 'skipknown #f)))
+		    (wikidmap! unmapped item)))
 		 ((> (|| (ambiguous? candidates)) 4)
 		  (logwarn |Wikidmap|
 		    "Ambiguous wikidata item " item
@@ -79,15 +89,19 @@
 	      (import-by-isa item wf bf opts))))))) 
 
 (define (import-by-genls item wf bf (opts #f))
-  (let* ((known (?? 'wikidref (get item 'id))))
+  (let* ((known (?? 'wikidref (get item 'wikid)))
+	 (opts (opt+ opts 'lower #t)))
     (when (exists? known)  (lognotice |Found| known " for " item " genls* " bf))
     (try (tryif (not (getopt opts 'skipknown)) known)
 	 (let* ((gspec [@?genls bf])
 		(g2spec [@?genls* bf])
 		(g3spec [@?genls* (get bf @?genls)])
-		(candidates (try (wikid/getmap item gspec (opt+ opts 'lower #t))
-				 (wikid/getmap item g2spec (opt+ opts 'lower #t))
-				 (wikid/getmap item g3spec (opt+ opts 'lower #t)))))
+		(spec gspec)
+		(candidates (try (wikid/getmap item gspec opts)
+				 (begin (set! spec g2spec) (fail))
+				 (wikid/getmap item g2spec opts)
+				 (begin (set! spec g3spec) (fail))
+				 (wikid/getmap item g3spec opts))))
 	   (cond ((and (fail? candidates) (getopt opts 'import #t)
 		       (not (or (getopt opts 'dryrun #t) (getopt opts 'skipknown #f))))
 		  (logwarn |WikidImport| 
@@ -96,53 +110,59 @@
 				   [@?genls bf sensecat (get bf 'sensecat)])))
 		 ((and (singleton? candidates) 
 		       (test candidates 'wikidref)
-		       (not (test candidates 'wikidref (get item 'id))))
+		       (not (test candidates 'wikidref (get item 'wikid))))
 		  (logwarn |WikidMap|
 		    "Found existing concept " candidates " for " item 
 		    " already mapped to " (wikid/ref (get candidates 'wikidref))))
 		 ((singleton? candidates)
 		  (logwarn |WikidMap|
 		    "Found existing concept " candidates " for " item " isa " bf)
-		  (unless (not (or (getopt opts 'dryrun #t) (getopt opts 'skipknown #f)))
+		  (unless (not (or (getopt opts 'dryrun #t)
+				   (getopt opts 'skipknown #f)))
 		    (wikidmap! candidates item)))
 		 ((> (|| (ambiguous? candidates)) 4)
 		  (logwarn |Wikidmap|
 		    "Ambiguous wikidata item " item
 		    " matches " ($count (|| candidates) "candidate")
-		    " based on \n" (listdata gspec)))
+		    " based on \n" (listdata spec)))
 		 ((ambiguous? candidates)
 		  (logwarn |Wikidmap|
 		    "Ambiguous wikidata item " item
 		    " matches " (|| candidates) " candidates: "
 		    (listdata candidates)
-		    "\n based on \n" (listdata gspec)))
+		    "\n based on \n" (listdata spec)))
 		 (else (fail)))))))
 
 (define (import-by-occupation item occupation isa (opts #f))
   (let* ((spec [@?isa isa])
-	 (known (?? 'wikidref (get item 'id)))
-	 (candidates (try known (wikid/getmap item spec [lower #f]))))
+	 (known (?? 'wikidref (get item 'wikid)))
+	 (candidates (try known (wikid/getmap item spec [lower #f])))
+	 (unmapped (reject candidates 'wikidref)))
     (cond ((exists? known))
 	  ((singleton? candidates)
-	   (loginfo |WikidMap| "Found new map for " item "\n   to " candidates))
-	  ((fail? candidates)
+	   (loginfo |WikidMap| "Found unique map for " item "\n   to " candidates))
+	  ((fail? unmapped)
 	   (lognotice |WikidImport| 
 	     "Imported " item "\n   into " (wikid/import! item [lower #f])))
 	  ((ambiguous? candidates)
 	   (logwarn |Wikidmap| 
-	     "Ambiguous wikidata item " item " search on " spec
-	     (do-choices (c candidates) (printout "\n\t" c))))
+	     "Ambiguous wikidata item " item " search on " 
+	     spec " (occupation)"
+	     (if (> (|| candidates) 4)
+		 (printout " matching " (|| candidates) " candidates")
+		 (do-choices (c candidates) (printout "\n\t" c)))))
 	  (else))))
 
 (define (import-occupation occupation (isa) (opts #f))
-  (default! isa (?? 'wikidref (get occupation 'id)))
+  (default! isa (?? 'wikidref (get occupation 'wikid)))
   (unless (testopt opts 'lower #f) (set! opts (opt+ opts 'lower #f)))
   (if (fail? occupation)
       (logwarn |NoCognate| "No mapped BRICO concept for " occupation)
       (let ((items (find-frames wikidata.index @?wikid_occupation occupation)))
 	(when (exists? items)
 	  (if (config 'nthreads #t)
-	      (engine/run (defn (import-occupation item) (import-by-occupation item occupation isa opts))
+	      (engine/run (defn (occupation-importer item)
+			    (import-by-occupation item occupation isa opts))
 		  items)
 	      (do-choices (item items)
 		(import-by-occupation item occupation isa opts)))

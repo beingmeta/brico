@@ -31,12 +31,6 @@
     (wikid/copy! (get-wikidref (get f 'wikidref)) f
 		 #f #f)))
 
-(define (setup)
-  (knodb/readonly! brico.pool #f)
-  (knodb/readonly! brico.index #f)
-  (knodb/readonly! wikid.pool #f)
-  (knodb/readonly! wikid.index #f))
-
 (defambda (update-concepts (concepts) (opts #f))
   (default! concepts (?? 'has 'wikidref))
   (engine/run update-enginefn concepts 
@@ -47,7 +41,6 @@
        checktests ,(engine/delta 'items (getopt opts 'checkbatch 50000))]))
 
 (define (main)
-  (setup)
   (update-concepts))
 
 

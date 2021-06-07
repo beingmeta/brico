@@ -33,6 +33,7 @@
 (define-init words.index #f)
 (define-init norms.index #f)
 (define-init has.index #f)
+(define-init refs.index #f)
 (define-init props.index #f)
 
 (define-init propmaps.table (make-hashtable))
@@ -88,13 +89,26 @@
   (set! props.index
     (if (and (file-exists? (mkpath dir "props.index"))
 	     (file-exists? (mkpath dir "rare/props.flexindex")))
-	{(knodb/ref (mkpath dir "props.index") [readonly #t keyslot 'props register #t])
-	 (knodb/ref (mkpath dir "rare/props.flexindex") [readonly #t keyslot 'props register #t])}
+	{(knodb/ref (mkpath dir "props.index") [readonly #t register #t])
+	 (knodb/ref (mkpath dir "rare/props.flexindex") [readonly #t register #t])}
 	(flex/open-index (mkpath dir "props.flexindex")
 			 [indextype 'kindex size (* 6 1024 1024) create #t
 			  readonly (not (config 'wikidata:build))
 			  justfront (config 'wikidata:build)
 			  maxkeys (* 4 1024 1024)
+			  register #t])))
+
+  (set! refs.index
+    (if (and (file-exists? (mkpath dir "refs.index"))
+	     (file-exists? (mkpath dir "rare/refs.flexindex")))
+	{(knodb/ref (mkpath dir "refs.index") [readonly #t keyslot 'refs register #t])
+	 (knodb/ref (mkpath dir "rare/refs.flexindex") [readonly #t keyslot 'refs register #t])}
+	(flex/open-index (mkpath dir "refs.flexindex")
+			 [indextype 'kindex size (* 6 1024 1024) create #t
+			  readonly (not (config 'wikidata:build))
+			  justfront (config 'wikidata:build)
+			  maxkeys (* 4 1024 1024)
+			  keyslot 'refs
 			  register #t])))
 
   (set! has.index
@@ -121,7 +135,7 @@
 
   (set! wikidata.index
     (make-aggregate-index
-     {words.index norms.index has.index props.index wikidprops.index}
+     {words.index norms.index has.index refs.index props.index wikidprops.index}
      #[register #t])))
 
 (define (config-wikidata-source var (val #f))
@@ -134,6 +148,7 @@
 	  ((not (file-directory? val))
 	   (irritant val |NotADirectoryPath|))
 	  (else (set-wikidata-dir! val))))
+
 ;; Synonyms
 (config-def! 'wikidata:source config-wikidata-source)
 (config-def! 'wikidatasource config-wikidata-source)
@@ -151,7 +166,7 @@
 
 (define (wikidata/save!)
   (knodb/commit! {wikidata.pool wikidata.index brico.pool
-		  words.index norms.index has.index props.index
+		  words.index norms.index refs.index has.index props.index
 		  wikidprops.index}))
 
 ;;; Wikidata refs

@@ -18,7 +18,8 @@
    import-diplomats
    import-politicians
    import-occupations
-   import-war-and-peace})
+   import-war-and-peace
+   import-art})
 
 (define %optmods
   '{brico brico/wikid brico/indexing
@@ -158,7 +159,8 @@
 (define (import-occupations)
   (let* ((occupations (pick (wikidata/find @?wikid_isa meta-roles)
 			wikidata->brico))
-	 (done (try (file-exists? "occupations.xtype") (read-xtype (open-byte-input "occupations.xtype")))))
+	 (done (try (file-exists? "occupations.xtype")
+		    (read-xtype (open-byte-input "occupations.xtype")))))
     (do-choices (occupation (difference occupations done))
       (logwarn |Occupation| "Importing " occupation " " (get occupation '%id))
       (import-occupation occupation)
@@ -198,6 +200,24 @@
     (wikidmap! (get wikidata-treaty-maps wf) wf))
   (do-choices (wf (getkeys wikidata-treaty-maps))
     (import-isa-type wf (get wikidata-treaty-maps wf) [lower #f])))
+
+(define (import-art)
+  (import-isa @31c1/2ca0(wikidata "Q11424" norm "film") [specls #t])
+  (import-isa @31c1/2bdf4(wikidata "Q179700" norm "statue") [specls #t])
+  (import-isa @31c1/326efd(wikidata "Q3305213" norm "painting") [specls #t])
+  (import-isa @31c1/64a77b9(wikidata "Q105543609" norm "musical work/composition") [specls #t])
+  (import-isa @31c1/6323(wikidata "Q25379" norm "play") [specls #t])
+  (import-isa @31c1/4f1eff(wikidata "Q5185279" norm "poem") [specls #t])
+  (import-isa @31c1/32b0c(wikidata "Q207628" norm "musical composition") [specls #t])
+  (unless (exists? (?? 'wikidref "Q2743"))
+    (wikidmap! @1/18a35(noun.communication "musical theater" "musical comedy" "musical")
+	       @31c1/ab7(wikidata "Q2743" norm "musical theatre")))
+  (import-isa @31c1/ab7(wikidata "Q2743" norm "musical theatre") [specls #t])
+  (import-isa @31c1/540(wikidata "Q1344" norm "opera") [specls #t])
+  (import-isa @31c1/525f9a(wikidata "Q5398426" norm "television series") [specls #t])
+  (import-isa @31c1/75eb2(wikidata "Q482994" norm "album") [specls #t])
+  ;; (import-isa @31c1/291a56c(wikidata "Q43099500" norm "performing arts production"))
+  )
 
 (define (main (importer (config 'importer)))
   (config! 'brico:readonly #f)
