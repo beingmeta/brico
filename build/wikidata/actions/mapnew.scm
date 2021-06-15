@@ -20,6 +20,7 @@
    import-occupations
    import-war-and-peace
    import-art})
+(module-export! '{import-art-opts})
 
 (define %optmods
   '{brico brico/wikid brico/indexing
@@ -201,21 +202,23 @@
   (do-choices (wf (getkeys wikidata-treaty-maps))
     (import-isa-type wf (get wikidata-treaty-maps wf) [lower #f])))
 
+(define import-art-opts [specls #t newcats #f])
+
 (define (import-art)
-  (import-isa @31c1/2ca0(wikidata "Q11424" norm "film") [specls #t])
-  (import-isa @31c1/2bdf4(wikidata "Q179700" norm "statue") [specls #t])
-  (import-isa @31c1/326efd(wikidata "Q3305213" norm "painting") [specls #t])
-  (import-isa @31c1/64a77b9(wikidata "Q105543609" norm "musical work/composition") [specls #t])
-  (import-isa @31c1/6323(wikidata "Q25379" norm "play") [specls #t])
-  (import-isa @31c1/4f1eff(wikidata "Q5185279" norm "poem") [specls #t])
-  (import-isa @31c1/32b0c(wikidata "Q207628" norm "musical composition") [specls #t])
   (unless (exists? (?? 'wikidref "Q2743"))
     (wikidmap! @1/18a35(noun.communication "musical theater" "musical comedy" "musical")
 	       @31c1/ab7(wikidata "Q2743" norm "musical theatre")))
-  (import-isa @31c1/ab7(wikidata "Q2743" norm "musical theatre") [specls #t])
-  (import-isa @31c1/540(wikidata "Q1344" norm "opera") [specls #t])
-  (import-isa @31c1/525f9a(wikidata "Q5398426" norm "television series") [specls #t])
-  (import-isa @31c1/75eb2(wikidata "Q482994" norm "album") [specls #t])
+  (import-isa @31c1/2ca0(wikidata "Q11424" norm "film") import-art-opts)
+  (import-isa @31c1/2bdf4(wikidata "Q179700" norm "statue") import-art-opts)
+  (import-isa @31c1/326efd(wikidata "Q3305213" norm "painting") import-art-opts)
+  (import-isa @31c1/64a77b9(wikidata "Q105543609" norm "musical work/composition") import-art-opts)
+  (import-isa @31c1/6323(wikidata "Q25379" norm "play") import-art-opts)
+  (import-isa @31c1/4f1eff(wikidata "Q5185279" norm "poem") import-art-opts)
+  (import-isa @31c1/21639d(wikidata "Q2188189" norm "musical work") import-art-opts)
+  (import-isa @31c1/ab7(wikidata "Q2743" norm "musical theatre") import-art-opts)
+  (import-isa @31c1/540(wikidata "Q1344" norm "opera") import-art-opts)
+  (import-isa @31c1/525f9a(wikidata "Q5398426" norm "television series") import-art-opts)
+  (import-isa @31c1/75eb2(wikidata "Q482994" norm "album") import-art-opts)
   ;; (import-isa @31c1/291a56c(wikidata "Q43099500" norm "performing arts production"))
   )
 
@@ -236,12 +239,3 @@
     (import-occupations)
     (import-war-and-peace))
   (knodb/commit))
-
-#|
-(wikidmap! 
-  @1/8b176(noun.person "Richard Starkey" genls "dessert apple")
-  (wikidata/ref "Q2632" "Ringo Starr"))
-(wikidmap! 
-  @1/800593a(wikid "Ringo Starr" "Q2632")
-  (wikidata/ref "Q41781790" "Starr"))
-|#

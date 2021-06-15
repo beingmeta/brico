@@ -10,18 +10,42 @@
 	      knodb/flexindex})
 (use-module '{brico})
 
-(module-export! '{wikidata.dir
+(module-export! '{wikidata.dir wikidata-build
 		  wikidata.pool wikidata.index
-		  words.index norms.index has.index props.index wikidata.props
+		  words.index norms.index has.index props.index refs.index
+		  instanceof.index subclassof.index subclasses.index
 		  propmaps.table
 		  wikidata/ref wikid/ref
 		  wikidata/find wikid/find
 		  wikidata/makeid
+		  wikidata/class!
 		  get-wikidref
 		  probe-wikidref
-		  get-wikidprop})
+		  get-wikidprop
+		  wikid/brico/ref
+		  brico/ref
+		  wikid/gloss})
+
+(module-export! 'table/top)
 
 (module-export! '{wikidata/save!})
+
+(module-export! '{wikid/getrefs wikid/countrefs wikid/toprefs wikid/refscores
+		  wikid/genls wikid/genls* wikid/specls wikid/specls*})
+
+(module-export! '{wikid-isa
+		  wikid-instanceof
+		  wikid-genls
+		  wikid-subclassof
+		  wikid-occupation
+		  wikid-equivalent
+		  wikid-opposite
+		  wikid-memberof
+		  wikid-partof
+		  wikid-different
+		  wikid-territory
+		  wikid-instance-slotids
+		  wikid-classes})
 
 (define %loglevel %notice%)
 
@@ -35,11 +59,36 @@
 (define-init has.index #f)
 (define-init refs.index #f)
 (define-init props.index #f)
+(define-init instanceof.index #f)
+(define-init subclassof.index #f)
+(define-init subclasses.index #f)
+
+(define-init wikid-classes {})
 
 (define-init propmaps.table (make-hashtable))
 
 (define-init wikidata-readonly #f)
 (define-init wikidata-build #f)
+
+(define wikid-instance-slotids
+  {@1/44f50("publication date" wikid "P577")
+   ;; @1/44dd9("inception" wikid "P571")
+   @1/451b4("date of official opening" wikid "P1619")
+   ;; @1/44fb9("creator" wikid "P170")
+   ;;  @1/450f9("duration" wikid "P2047")
+   @1/44dfe("coordinate location" wikid "P625")})
+
+(define wikid-isa @1/1f("instance of" wikid "P31"))
+(define wikid-instanceof @1/1f("instance of" wikid "P31"))
+(define wikid-genls @1/20("subclass of" wikid "P279"))
+(define wikid-subclassof @1/20("subclass of" wikid "P279"))
+(define wikid-occupation @1/44e51("occupation" wikid "P106"))
+(define wikid-equivalent @1/21("equivalent class" wikid "P1709"))
+(define wikid-opposite @1/22("opposite of" wikid "P461"))
+(define wikid-memberof @1/23("member of" wikid "P463"))
+(define wikid-partof @1/24("part of" wikid "P361"))
+(define wikid-different @1/25("different from" wikid "P1889"))
+(define wikid-territory @1/26("located in the administrative territorial entity" wikid "P131"))
 
 (define-init set-wikidata-dir!
   (slambda (dir) (setup-wikidata dir)))
@@ -64,9 +113,9 @@
 
   (set! words.index
     (if (and (file-exists? (mkpath dir "words.index"))
-	     (file-exists? (mkpath dir "rare/words.flexindex")))
+	     (file-exists? (mkpath dir "words_tail.index")))
 	{(knodb/ref (mkpath dir "words.index") [readonly #t keyslot 'words register #t])
-	 (knodb/ref (mkpath dir "rare/words.flexindex") [readonly #t keyslot 'words register #t])}
+	 (knodb/ref (mkpath dir "words_tail.index") [readonly #t keyslot 'words register #t])}
 	(flex/open-index (mkpath dir "words.flexindex")
 			 [indextype 'kindex size (* 6 1024 1024) create #t
 			  readonly (not (config 'wikidata:build))
@@ -76,9 +125,9 @@
 
   (set! norms.index
     (if (and (file-exists? (mkpath dir "norms.index"))
-	     (file-exists? (mkpath dir "rare/norms.flexindex")))
+	     (file-exists? (mkpath dir "norms_tail.index")))
 	{(knodb/ref (mkpath dir "norms.index") [readonly #t keyslot 'norms register #t])
-	 (knodb/ref (mkpath dir "rare/norms.flexindex") [readonly #t keyslot 'norms register #t])}
+	 (knodb/ref (mkpath dir "norms_tail.index") [readonly #t keyslot 'norms register #t])}
 	(flex/open-index (mkpath dir "norms.flexindex")
 			 [indextype 'kindex size (* 6 1024 1024) create #t
 			  readonly (not (config 'wikidata:build))
@@ -88,9 +137,9 @@
 
   (set! props.index
     (if (and (file-exists? (mkpath dir "props.index"))
-	     (file-exists? (mkpath dir "rare/props.flexindex")))
+	     (file-exists? (mkpath dir "props_tail.index")))
 	{(knodb/ref (mkpath dir "props.index") [readonly #t register #t])
-	 (knodb/ref (mkpath dir "rare/props.flexindex") [readonly #t register #t])}
+	 (knodb/ref (mkpath dir "props_tail.index") [readonly #t register #t])}
 	(flex/open-index (mkpath dir "props.flexindex")
 			 [indextype 'kindex size (* 6 1024 1024) create #t
 			  readonly (not (config 'wikidata:build))
@@ -100,9 +149,9 @@
 
   (set! refs.index
     (if (and (file-exists? (mkpath dir "refs.index"))
-	     (file-exists? (mkpath dir "rare/refs.flexindex")))
+	     (file-exists? (mkpath dir "refs_tail.index")))
 	{(knodb/ref (mkpath dir "refs.index") [readonly #t keyslot 'refs register #t])
-	 (knodb/ref (mkpath dir "rare/refs.flexindex") [readonly #t keyslot 'refs register #t])}
+	 (knodb/ref (mkpath dir "refs_tail.index") [readonly #t keyslot 'refs register #t])}
 	(flex/open-index (mkpath dir "refs.flexindex")
 			 [indextype 'kindex size (* 6 1024 1024) create #t
 			  readonly (not (config 'wikidata:build))
@@ -110,6 +159,20 @@
 			  maxkeys (* 4 1024 1024)
 			  keyslot 'refs
 			  register #t])))
+
+  (set! instanceof.index
+    (knodb/make (mkpath dir "instanceof.index")
+		[indextype 'kindex create #t keyslot wikid-instanceof
+		 size #8mib register #t]))
+
+  (set! subclassof.index
+    (knodb/make (mkpath dir "subclassof.index")
+		[indextype 'kindex create #t keyslot wikid-subclassof
+		 size #8mib register #t]))
+
+  (set! subclasses.index
+    (knodb/make (mkpath dir "subclasses.index")
+		[indextype 'kindex create #t size #8mib register #t]))
 
   (set! has.index
     (knodb/make (mkpath dir "hasprops.index")
@@ -133,10 +196,22 @@
       (store! table (get prop '{wikid wikidref}) prop)
       (store! table (upcase (get prop '{wikid wikidref})) prop)))
 
+  (set! wikid-classes (find-frames props.index 'type 'wikidclass))
+
   (set! wikidata.index
     (make-aggregate-index
      {words.index norms.index has.index refs.index props.index wikidprops.index}
      #[register #t])))
+
+(config-def! 'wikidata:build
+  (lambda (var (val))
+    (cond ((not (bound? val)) wikidata-build)
+	  ((not val) (set! wikidata-build #f))
+	  ((not wikidata.dir)
+	   (set! wikidata-build #t))
+	  (wikidata-build wikidata-build)
+	  (else (error |WikidataAlreadyConfigured| |ConfigWikidataBuild|)))))
+(varconfig! wikidata:readonly wikidata-readonly)
 
 (define (config-wikidata-source var (val #f))
   (cond ((not val) wikidata.dir)
@@ -154,20 +229,17 @@
 (config-def! 'wikidatasource config-wikidata-source)
 (config-def! 'wikidata config-wikidata-source)
 
-(config-def! 'wikidata:build
-  (lambda (var (val))
-    (cond ((not (bound? val)) wikidata-build)
-	  ((not val) (set! wikidata-build #f))
-	  ((not wikidata.dir)
-	   (set! wikidata-build #t))
-	  (wikidata-build wikidata-build)
-	  (else (error |WikidataAlreadyConfigured|)))))
-(varconfig! wikidata:readonly wikidata-readonly)
-
 (define (wikidata/save!)
   (knodb/commit! {wikidata.pool wikidata.index brico.pool
 		  words.index norms.index refs.index has.index props.index
 		  wikidprops.index}))
+
+(define (wikid/brico/ref arg)
+  (if (or (string? arg) (symbol? arg))
+      (?? 'wikidref (upcase arg))
+      (tryif (and (oid? arg) (test arg 'wikid))
+	(?? 'wikidref (get arg 'wikid)))))
+(define (brico/ref arg) (wikid/brico/ref arg))
 
 ;;; Wikidata refs
 
@@ -239,4 +311,91 @@
   (apply find-frames wikidata.index specs))
 
 (define wikid/find wikidata/find)
+
+;;; Semantic functions
+
+(define (wikid/getrefs x)
+  (find-frames refs.index 'refs x))
+(define (wikid/countrefs x)
+  (|| (find-frames refs.index 'refs x)))
+(defambda (wikid/refscores items)
+  (let ((table (make-hashtable)))
+    (do-choices (item items)
+      (store! table item (|| (find-frames refs.index 'refs item))))
+    table))
+(defambda (wikid/toprefs items (n 3))
+  (let ((table (make-hashtable)))
+    (do-choices (item items)
+      (store! table item (|| (find-frames refs.index 'refs item))))
+    (max/sorted items n table)))
+
+(define (table/top table (thresh 0.9))
+  (let* ((maxval (table-maxval table))
+	 (threshval (* thresh maxval))
+	 (candidates (table-skim table threshval))
+	 (strata (rsorted (get table candidates)))
+	 (result candidates))
+    (doseq (stratum strata)
+      (let* ((next (pick candidates table >= stratum))
+	     (sum (reduce-choice + next 0 table))
+	     (mean (/~ sum (|| next))))
+	(if (> mean threshval)
+	    (set! result next)
+	    (break))))
+    result))
+
+(define (wikid/gloss x (lang 'en))
+  (get (get x 'descriptions) lang))
+
+(define (wikid/genls x)
+  (get x wikid-genls))
+(define (wikid/genls* x)
+  (get* x wikid-genls))
+(define (wikid/specls x)
+  (find-frames wikidata.index wikid-genls x))
+(define (wikid/specls* x)
+  (let ((found (make-hashset))
+	(roots x)
+	(next {}))
+    (while (exists? roots)
+      (do-choices (root roots)
+	(unless (hashset-get found root)
+	  (hashset-add! found root)
+	  (set+! next (reject (find-frames wikidata.index wikid-genls root) found))))
+      (set! roots next)
+      (set! next {}))
+    (hashset-elts found)))
+
+(define (wikidata/class! frame)
+  (unless wikidata.pool (error |NoWikidataInit| wikidata/class!))
+  (unless (test frame 'type 'wikidclass)
+    (add! frame 'type 'wikidclass)
+    (index-frame props.index frame 'type 'wikidclass)
+    (set+! wikid-classes frame)))
+
+(define has-map
+  [place {wikid-partof wikid-territory}
+   person {@1/44ecc("date of birth" wikid "P569")
+	   @1/44e4b("father" wikid "P22")
+	   @1/44e4d("mother" wikid "P25")}])
+
+(define (get-wikid-matches f type (thresh 0.8) (max #f))
+  (let* ((possible (wikid/find 'words (get f 'words) 'has (get has-map type)))
+	 (refscores (wikid/refscores possible))
+	 (top (table/top refscores thresh)))
+    (tryif (and (exists? top) (or (not max) (< (|| top) max))) top)))
+
+(define (wikid-partof* x) (get* x {wikid-territory wikid-partof}))
+
+(define (wikid/listmaps bf (count 5))
+  (let* ((wordmatches (wikid/find 'words (get bf 'words)))
+	 (toprefs (wikid/toprefs wordmatches count)))
+    (append
+     (choice->vector (get bf @?engloss))
+     (forseq (f toprefs)
+       (vector `(wikidmap! ,bf ,f)
+	       (qc (pick-one (get (get f 'descriptions) 'en)))
+	       (try (?? 'wikidref (get f 'wikid)) #f)))))) 
+
+(module-export! '{get-wikid-matches wikid/listmaps})
 

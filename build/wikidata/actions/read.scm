@@ -4,8 +4,6 @@
 
 (in-module 'brico/build/wikidata/actions/read)
 
-(when (file-exists? "read.cfg") (load-config "read.cfg"))
-
 (use-module '{webtools libarchive texttools logger varconfig})
 (use-module '{io/filestream text/stringfmts optimize})
 (use-module '{kno/reflect kno/profile kno/mttools kno/statefiles})
@@ -13,6 +11,8 @@
 
 (use-module '{knodb knodb/branches knodb/typeindex knodb/flexindex})
 (use-module '{brico brico/build/wikidata})
+
+(module-export! '{main})
 
 (config! 'cachelevel 2)
 (config! 'logthreadinfo #t)
@@ -34,6 +34,13 @@
 
 (define dochain #f)
 (varconfig! chain dochain config:boolean)
+
+(define %optmods
+  '{knodb knodb/flexpool knodb/flexindex knodb/adjuncts 
+    knodb/branches knodb/typeindex
+    brico brico/indexing brico/build/wikidata
+    engine engine/readfile
+    io/filestream})
 
 ;;; Reading data
 
@@ -99,6 +106,8 @@
 	    converted)))
 	(else v)))
 
+(define lattice-props {wikid-instanceof wikid-subclassof})
+
 (define (import-wikid-item item index has.index)
   (let* ((id (get item 'id))
 	 (ref (get-wikidref id))
@@ -140,6 +149,11 @@
 			(get (get (pickmaps main) 'datavalue) 'value)})
 		 (oidvals (pickoids vals)))
 	    (add! ref prop vals)
+	    (when (overlaps? prop lattice-props)
+	      (index-frame index ref prop (list oidvals))
+	      (when (eq? prop wikid-subclassof)
+		(add! ref 'type 'wikidclass)
+		(index-frame index ref 'type 'wikidclass)))
 	    (index-frame index ref prop oidvals)
 	    (index-frame index oidvals 'refs ref))))
       (index-frame has.index ref 'has (getkeys ref))
@@ -163,7 +177,7 @@
 	   (qc has.index (tryif (has-prefix id {"P" "p"}) wikidprops)))
 	  (logwarn |BadJSON| line)))))
 
-(define (setup)
+(define (setup . ignored)
   (config-default! 'bricosource "brico")
   (when (file-directory? "wikidata")
     (config-default! 'wikidata "wikidata")
@@ -178,17 +192,18 @@
     (getline in)
     in))
 
-(define (runloop (maxitems #f)
+(define (runloop (maxitems (config 'maxitems #f))
 		 (threadcount (mt/threadcount (config 'nthreads #t)))
 		 (file (CONFIG 'INPUTFILE "latest-wikidata.json")))
   (let* ((statefile (if wikidata.dir (mkpath wikidata.dir "read.state") "read.state"))
 	 (state (tryif (file-exists? statefile) (statefile/read statefile)))
+	 (jobid (config 'JOBID (or (getenv "U8_JOBID") "read")))
 	 (started (elapsed-time)))
-    (config! 'appid (glom "read#" (1+ (try (get state 'cycles) 0))))
+    (config! 'appid (glom jobid "#" (1+ (try (get state 'cycles) 0))))
     (engine/run import-enginefn engine/readfile/fillfn
       `#[statefile ,statefile
-	 stopfile "read.stop"
-	 donefile "read.done"
+	 stopfile ,(glom jobid ".stop")
+	 donefile ,(glom jobid ".done")
 
 	 loop #[index ,wikidata.index
 		wikidprops.index ,wikidprops.index
@@ -218,7 +233,7 @@
 	 logfns {,engine/log ,engine/logrusage ,engine/readfile/log}
 	 logfreq ,(config 'logfreq 30)])))
 
-(define (main (maxitems #f)
+(define (main (maxitems (CONFIG 'MAXITEMS #f))
 	      (threadcount (mt/threadcount (config 'nthreads #t)))
 	      (file (CONFIG 'INPUTFILE "latest-wikidata.json")))
   (setup)

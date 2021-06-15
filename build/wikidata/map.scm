@@ -12,7 +12,8 @@
 (module-export! '{wikidata->brico wikid/brico wikid/src
 		  wikidmap wikidmatch wikid/getmap wikidmap!
 		  wikid/import! wikid/copy! wikid/update!
-		  wikidata/import/enginefn})
+		  wikidata/import/enginefn
+		  wikid/drop!})
 
 (define %loglevel %notice%)
 
@@ -43,7 +44,7 @@
   (default! copy (getopt opts 'copy #t))
   (default! index (get-index brico))
   (let* ((curmap (get brico 'wikidref))
-	 (wikidref (if (string? wikidata) wikidata (get wikidata 'id)))
+	 (wikidref (if (string? wikidata) wikidata (get wikidata 'wikid)))
 	 (wikidata (if (string? wikidata) (wikid/ref wikidata) wikidata))
 	 (disowned (?? 'wikidref wikidref)))
     (when (and index (exists? curmap))
@@ -66,8 +67,31 @@
     (when index (index-frame index brico 'wikidref wikidref))
     (when copy (wikid/copy! wikidata brico index))))
 
+(define (wikid/drop! brico (index))
+  (when (in-pool? brico wikidata.pool) (set! brico (wikid/brico/ref brico)))
+  (default! index (get-index brico))
+  (drop! brico @1/2c27e{isa} (get brico @1/1f("instance of" wikid "P31")))
+  (drop! brico @1/2c272{genls} (get brico @1/1f("instance of" wikid "P31")))
+  (let* ((prev (wikid/ref (get brico 'wikidref)))
+	 (labels (get prev 'labels))
+	 (aliases (get prev 'aliases))
+	 (descs (get prev 'descriptions)))
+    (do-choices (lang (getkeys labels))
+      (retract! brico (get norm-map lang)
+	{(get labels lang) (downcase (get labels lang))})
+      (retract! brico (get language-map lang)
+	{(get labels lang) (downcase (get labels lang))
+	 (get aliases lang) (downcase (get aliases lang))})
+      (retract! brico (get gloss-map lang)
+	{(get descs lang) (downcase (get descs lang))})))
+  (drop! brico 'wikidref)
+  (do-choices (p (pick (pickoids (getkeys brico)) 'type 'wikidprop))
+    (let ((v (get brico p))) 
+      (drop! brico p v)
+      (when index (unindex! index brico p v)))))
+
 (define (wikidata->brico wikid (wikidstring) (cached))
-  (default! wikidstring (if (string? wikid) wikid (get wikid 'id)))
+  (default! wikidstring (if (string? wikid) wikid (get wikid 'wikid)))
   (unless (oid? wikid) (set! wikid (or (wikidata/ref wikidstring) wikid)))
   (when (fail? wikid) (irritant wikidstring |InvalidWikidRef|))
   (set! cached (try (get wikidmap wikid) (get wikidmap wikidstring)))
@@ -85,7 +109,8 @@
 (define (getmap.norms wikidata (spec #f) (opts #f))
   (let* ((lower (getopt opts 'lower #f))
 	 (words (get wikidata 'norms))
-	 (candidates (?? en_norms {words (tryif lower (downcase words))})))
+	 (candidates (difference (?? en_norms {words (tryif lower (downcase words))})
+				 (?? 'skipwikid {#t (get wikidata 'wikid)}))))
     (when spec 
       (do-choices (slotid (getkeys spec))
 	(set! candidates (intersection candidates 
@@ -94,7 +119,8 @@
 (define (getmap.words wikidata (spec #f) (opts #f))
   (let* ((lower (getopt opts 'lower #f))
 	 (words (get wikidata 'norms))
-	 (candidates (?? en_norms {words (tryif lower (downcase words))})))
+	 (candidates (difference (?? en_norms {words (tryif lower (downcase words))})
+				 (?? 'skipwikid {#t (get wikidata 'wikid)}))))
     (when spec 
       (do-choices (slotid (getkeys spec))
 	(set! candidates (intersection candidates 
@@ -108,7 +134,7 @@
 ;; (defambda (wikid/getmap wikidframes (spec #f) (opts #f))
 ;;   (for-choices (wikidframe {(pickoids wikidframes)
 ;; 			    (wikid/ref (pickstrings wikidframes))})
-;;     (try (?? 'wikidref (get wikidframe 'id))
+;;     (try (?? 'wikidref (get wikidframe 'wikid))
 ;; 	 (let ((candidate (for-choices (spec spec)
 ;; 			     (wikidmatch wikidframe spec opts))))
 ;; 	   (when (singleton? candidate)
@@ -193,7 +219,7 @@
     (let* ((wikidvals (get wikid prop))
 	   (refvals (pickoids wikidvals))
 	   (litvals (difference wikidvals refvals))
-	   (newvals (difference (choice (get refvals 'id)
+	   (newvals (difference (choice (get refvals 'wikid)
 					(wikidata->brico refvals)
 					litvals)
 				#f))
@@ -202,7 +228,7 @@
 	   (todrop (difference cur newvals)))
       (add! frame prop toadd)
       (when dropvals (drop! frame prop todrop))
-      (set+! unmapped (get (reject refvals wikidmap) 'id))
+      (set+! unmapped (get (reject refvals wikidmap) 'wikid))
       (when (and index (not skip-index) (exists? toadd) (exists? refvals))
 	(index-frame index frame prop (pickoids toadd)))))
   (do-choices (import (getkeys import-slotids))
@@ -263,7 +289,7 @@
 
 (define (wikid/import! wikid (opts #f) (into #f) (template) (wikidstring))
   (default! template (getopt opts 'template #f))
-  (default! wikidstring (if (string? wikid) wikid (get wikid 'id)))
+  (default! wikidstring (if (string? wikid) wikid (get wikid 'wikid)))
   (unless (oid? wikid) (set! wikid (or (wikidata/ref wikidstring) wikid)))
   (when (fail? wikid) (irritant wikidstring |InvalidWikidRef|))
   (let* ((cached (or (try (get wikidmap wikid) (get wikidmap wikidstring)
@@ -289,7 +315,6 @@
 
 (defambda (wikidata/import/enginefn batch)
   (prefetch-oids! batch)
-  (prefetch-keys! wikid.index (cons 'wikidref (get batch 'id)))
+  (prefetch-keys! wikid.index (cons 'wikidref (get batch 'wikid)))
   (wikid/import! batch))
-
 
