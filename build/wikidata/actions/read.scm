@@ -4,9 +4,7 @@
 
 (in-module 'brico/build/wikidata/actions/read)
 
-(when (file-exists? "read.cfg") (load-config "read.cfg"))
-
-(use-module '{webtools libarchive texttools logger varconfig})
+(use-module '{webtools archivetools texttools logger varconfig})
 (use-module '{io/filestream text/stringfmts optimize})
 (use-module '{kno/reflect kno/profile kno/mttools kno/statefiles})
 (use-module '{engine engine/readfile})
