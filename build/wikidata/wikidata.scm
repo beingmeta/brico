@@ -4,7 +4,7 @@
 
 (in-module 'brico/build/wikidata)
 
-(use-module '{webtools libarchive texttools})
+(use-module '{webtools archivetools texttools})
 (use-module '{logger varconfig text/stringfmts})
 (use-module '{knodb knodb/branches knodb/typeindex 
 	      knodb/flexindex})

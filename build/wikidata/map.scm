@@ -4,7 +4,7 @@
 
 (in-module 'brico/build/wikidata/map)
 
-(use-module '{logger webtools varconfig libarchive texttools text/stringfmts})
+(use-module '{logger webtools varconfig archivetools texttools text/stringfmts})
 (use-module '{defmacro optimize})
 (use-module '{knodb knodb/branches knodb/typeindex knodb/flexindex})
 (use-module '{brico brico/indexing brico/wikid brico/build/wikidata})
