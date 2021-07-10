@@ -148,6 +148,7 @@
 	(index-frame (try wordnet.index core.index) f '{word of sensenum language rank type}))
       (commit {wordnet.index core.index}))
     (commit)))
+(module-export! 'main)
 
 (when (config 'optimize #t config:boolean)
   (optimize! '{brico brico/indexing knodb/tinygis fifo engine})

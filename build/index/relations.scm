@@ -51,6 +51,7 @@
 	 logchecks #t
 	 logfreq 25])
     (commit)))
+(module-export! 'main)
 
 (when (config 'optimize #t config:boolean)
   (optimize! '{brico engine fifo brico/indexing})

@@ -120,6 +120,7 @@
     (commit)
     (if (not (config 'phase2))
 	(apply chain "PHASE2=yes" names))))
+(module-export! 'main)
 
 (optimize! '{brico engine fifo brico/indexing})
 (optimize-locals!)
