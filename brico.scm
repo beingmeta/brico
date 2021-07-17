@@ -16,6 +16,8 @@
 (define-init %loglevel %notify%)
 ;;(set! %loglevel %debug%)
 
+(define %optmods '{knodb logger})
+
 (define (get-keyslot ix) 
   (tryif (index? ix) (indexctl ix 'keyslot)))
 

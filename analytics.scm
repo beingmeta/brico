@@ -7,6 +7,8 @@
 
 (use-module '{brico texttools})
 
+(define %optmods '{brico})
+
 ;;; This module provides inference over the new BRICO semantics, which is
 ;;;  based on Aristotle's term logic.  The term logic provides four
 ;;;  basic relations between predicates:

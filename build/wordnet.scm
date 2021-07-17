@@ -8,6 +8,7 @@
 (use-module '{logger varconfig optimize text/stringfmts})
 (use-module '{knodb})
 (use-module '{brico})
+(define %optmods '{brico logger})
 
 (module-export! '{link-release! check-release-links
 		  import-synsets read-synset finish-import

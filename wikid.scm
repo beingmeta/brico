@@ -12,6 +12,7 @@
 
 (module-export! '{wikid.pool wikid.index wikid.source})
 (define %nosubst '{wikid.source wikid.pool wikid.index wikid.background})
+(define %optmods '{brico logger knodb})
 
 (define-init wikid.source #f)
 (define-init wikid.pool #f)

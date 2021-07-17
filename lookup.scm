@@ -13,6 +13,8 @@
 (use-module '{morph morph/en})
 (use-module '{brico/maprules kno/rulesets varconfig logger})
 
+(define %optmods '{brico logger morph morph/en brico/maprules kno/rulesets})
+
 (define logger %logger)
 
 (define metaphone-max 16)

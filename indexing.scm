@@ -9,6 +9,7 @@
 (use-module '{knodb brico texttools varconfig logger})
 
 (define %nosubst '{indexinfer default-frag-window})
+(define %optmods '{knodb brico logger})
 
 (define fix-wikid #t)
 (varconfig! 'brico:wikid:fix fix-wikid)

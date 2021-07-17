@@ -17,6 +17,8 @@
    cached-dterm/prefetch! find-dterm/prefetch!
    dterm-caches})
 
+(define %optmods '{brico brico/lookup morph/en brico/analytics})
+
 (define dterm-caches '())
 (define usesumterms #f)
 
