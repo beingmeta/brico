@@ -9,11 +9,13 @@
 (use-module '{knodb knodb/branches knodb/typeindex 
 	      knodb/flexindex})
 (use-module '{brico})
+(define %optmods '{brico logger knodb knodb/branches knodb/typeindex knodb/flexindex})
 
 (module-export! '{wikidata.dir wikidata-build
 		  wikidata.pool wikidata.index
 		  words.index norms.index has.index props.index refs.index
-		  instanceof.index subclassof.index subclasses.index
+		  subclassof.index instanceof.index
+
 		  propmaps.table
 		  wikidata/ref wikid/ref
 		  wikidata/find wikid/find
@@ -47,6 +49,8 @@
 		  wikid-instance-slotids
 		  wikid-classes})
 
+(module-export! '{get-wikidata.json})
+
 (define %loglevel %notice%)
 
 (define-init wikidata.dir #f)
@@ -61,7 +65,6 @@
 (define-init props.index #f)
 (define-init instanceof.index #f)
 (define-init subclassof.index #f)
-(define-init subclasses.index #f)
 
 (define-init wikid-classes {})
 
@@ -170,10 +173,6 @@
 		[indextype 'kindex create #t keyslot wikid-subclassof
 		 size #8mib register #t]))
 
-  (set! subclasses.index
-    (knodb/make (mkpath dir "subclasses.index")
-		[indextype 'kindex create #t size #8mib register #t]))
-
   (set! has.index
     (knodb/make (mkpath dir "hasprops.index")
 		[indextype 'kindex create #t keyslot 'has register #t]))
@@ -193,14 +192,19 @@
 	(table propmaps.table))
     (prefetch-oids! props)
     (do-choices (prop props) 
-      (store! table (get prop '{wikid wikidref}) prop)
-      (store! table (upcase (get prop '{wikid wikidref})) prop)))
+      (let ((refstrings (get prop '{wikid wikidref})))
+	(store! table refstrings prop)
+	(store! table (upcase refstrings) prop)
+	(store! table (downcase refstrings) prop)
+	(store! table (string->symbol (downcase refstrings)) prop))))
 
   (set! wikid-classes (find-frames props.index 'type 'wikidclass))
 
   (set! wikidata.index
     (make-aggregate-index
-     {words.index norms.index has.index refs.index props.index wikidprops.index}
+     {words.index norms.index has.index refs.index
+      props.index wikidprops.index
+      subclassof.index instanceof.index}
      #[register #t])))
 
 (config-def! 'wikidata:build
@@ -244,15 +248,18 @@
 ;;; Wikidata refs
 
 (define (get-wikidref id)
+  (when (symbol? id) (set! id (symbol->string id)))
   (if (has-prefix id "Q")
       (oid-plus @31c1/0 (string->number (slice id 1)))
-      (try (get propmaps.table (upcase id))
+      (try (get propmaps.table id)
+	   (get propmaps.table (upcase id))
 	   (make-new-prop (upcase id)))))
 
 (define (probe-wikidref id)
   (if (has-prefix id "Q")
       (oid-plus @31c1/0 (string->number (slice id 1)))
-      (get propmaps.table id)))
+      (tryif (has-prefix id {"p" "P"}) 
+	(get propmaps.table id))))
 
 (define (get-wikidprop id)
   (if (or (symbol? id) (string? id)) 
@@ -262,6 +269,7 @@
 ;;; Use define-init to avoid redefining with a new lock
 (define-init make-new-prop
   (defsync (make-new-prop id)
+    (unless (uppercase? id) (set! id (upcase id)))
     (try (find-frames wikidprops.index 'wikid id)
 	 (find-frames brico.index 'wikid id)
 	 (?? 'wikid id)
@@ -275,6 +283,7 @@
 	     'source 'wikidata
 	     '%id (list 'WIKIDPROP id))))
     (index-frame wikidprops.index f '{type wikidtype wikid wikidref source})
+    (index-frame wikidprops.index f '{wikid wikidref} {(upcase id) (downcase id)})
     (index-frame wikidprops.index f 'has (getkeys f))
     (store! propmaps.table id f)
     f))
@@ -311,6 +320,13 @@
   (apply find-frames wikidata.index specs))
 
 (define wikid/find wikidata/find)
+
+;;; Getting a wikidata ref off of the web
+
+(define (get-wikidata.json id)
+  (get (jsonparse (get (urlget (glom "https://wikidata.org/entity/" (upcase id) ".json") #[follow #t])
+		       '%content))
+       'entities))
 
 ;;; Semantic functions
 

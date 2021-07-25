@@ -9,6 +9,10 @@
 (use-module '{knodb knodb/branches knodb/typeindex knodb/flexindex})
 (use-module '{brico brico/indexing brico/wikid brico/build/wikidata})
 
+(define %optmods '{brico brico/wikid brico/indexing brico/build/wikidata
+		   knodb knodb/branches knodb/typeindex knodb/flexindex
+		   logger})
+
 (module-export! '{wikidata->brico wikid/brico wikid/src
 		  wikidmap wikidmatch wikid/getmap wikidmap!
 		  wikid/import! wikid/copy! wikid/update!
@@ -287,9 +291,10 @@
 	  (when (and index (not skip-index))
 	    (index-frame index adj slot frame)))))))
 
-(define (wikid/import! wikid (opts #f) (into #f) (template) (wikidstring))
+(define (wikid/import! wikid (opts #f) (into #f) (template) (index) (wikidstring))
   (default! template (getopt opts 'template #f))
   (default! wikidstring (if (string? wikid) wikid (get wikid 'wikid)))
+  (default! index (getopt opts 'index #f))
   (unless (oid? wikid) (set! wikid (or (wikidata/ref wikidstring) wikid)))
   (when (fail? wikid) (irritant wikidstring |InvalidWikidRef|))
   (let* ((cached (or (try (get wikidmap wikid) (get wikidmap wikidstring)
@@ -310,11 +315,13 @@
     (when (or (not cached) (in-pool? frame wikid.pool)
 	      (exists in-pool? frame wikid.update))
       (store! wikidmap {wikid wikidstring} frame)
-      (wikid/copy! wikid frame (get-index frame) template))
+      (wikid/copy! wikid frame (or index (get-index frame)) template))
     frame))
 
 (defambda (wikidata/import/enginefn batch)
   (prefetch-oids! batch)
   (prefetch-keys! wikid.index (cons 'wikidref (get batch 'wikid)))
-  (wikid/import! batch))
+  (if (vector? batch)
+      (wikid/import! (elts batch))
+      (wikid/import! batch)))
 

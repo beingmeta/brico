@@ -6,6 +6,7 @@
 
 (use-module '{logger varconfig binio engine optimize text/stringfmts knodb})
 (use-module '{brico brico/wikid brico/build/wikidata brico/build/wikidata/map})
+(define %optmods '{brico brico/wikid brico/indexing brico/build/wikidata brico/build/map})
 
 (module-export! '{import-by-isa import-isa-type import-isa import-by-genls
 		  import-by-occupation import-occupation})
