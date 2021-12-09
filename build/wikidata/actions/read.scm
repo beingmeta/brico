@@ -197,7 +197,7 @@
 
 (define (runloop (maxitems (config 'maxitems #f))
 		 (threadcount (mt/threadcount (config 'nthreads #t)))
-		 (file (CONFIG 'INPUTFILE "latest-wikidata.json")))
+		 (file (CONFIG 'INFILE "latest-wikidata.json")))
   (let* ((statefile (if wikidata.dir (mkpath wikidata.dir "read.state") "read.state"))
 	 (state (tryif (file-exists? statefile) (statefile/read statefile)))
 	 (jobid (config 'JOBID (or (getenv "U8_JOBID") "readwikidata")))
@@ -238,8 +238,10 @@
 
 (define (main (maxitems (CONFIG 'MAXITEMS #f))
 	      (threadcount (mt/threadcount (config 'nthreads #t)))
-	      (file (CONFIG 'INPUTFILE "latest-wikidata.json")))
+	      (file (CONFIG 'INFILE "latest-wikidata.json")))
+  (unless (file-exists? file) (irritant file |MissingInputFile|))
   (setup)
+  (lineout "maxitems=" (write maxitems) " pidfile=" (getenv "PIDFILE"))
   (unless (and maxitems (= maxitems 0))
     (runloop maxitems threadcount file)))
   
@@ -268,3 +270,4 @@
    (define last-input #f)
    (define (import (in in))
      (import-wikid-item (read-item in) wikidata.index has.index))))
+
