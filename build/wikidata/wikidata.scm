@@ -15,7 +15,7 @@
 		  wikidata.pool wikidata.index
 		  words.index norms.index has.index props.index refs.index
 		  subclassof.index instanceof.index
-
+		  ->wikidprop
 		  propmaps.table
 		  wikidata/ref wikid/ref
 		  wikidata/find wikid/find
@@ -272,7 +272,9 @@
     (unless (uppercase? id) (set! id (upcase id)))
     (try (find-frames wikidprops.index 'wikid id)
 	 (find-frames brico.index 'wikid id)
+	 (find-frames brico.index 'wikidref id)
 	 (?? 'wikid id)
+	 (?? 'wikidref id)
 	 (alloc-new-prop id))))
 
 (define (alloc-new-prop id)
@@ -282,11 +284,26 @@
 	     'wikid id 'wikidref id
 	     'source 'wikidata
 	     '%id (list 'WIKIDPROP id))))
+    (logwarn |NewWikiDProp| id)
     (index-frame wikidprops.index f '{type wikidtype wikid wikidref source})
     (index-frame wikidprops.index f '{wikid wikidref} {(upcase id) (downcase id)})
     (index-frame wikidprops.index f 'has (getkeys f))
     (store! propmaps.table id f)
+    (store! propmaps.table {(upcase id) (downcase id)} f)
+    (unless (symbol? id) (store! propmaps.table (string->symbol id) f))
     f))
+
+(define (->wikidprop id)
+  (try (get propmaps.table id)
+       (get propmaps.table (downcase id))
+       (find-frames wikidprops.index 'wikid id)
+       (find-frames brico.index 'wikid id)
+       (find-frames brico.index 'wikid (downcase id))
+       (find-frames brico.index 'wikidref id)
+       (find-frames brico.index 'wikidref (downcase id))
+       (?? 'wikid id)
+       (?? 'wikidref id)
+       (alloc-new-prop id)))
 
 ;;; Generating %id slots
 
@@ -315,6 +332,7 @@
 	(else {})))
 
 (define wikid/ref wikidata/ref)
+(define ->wikidata wikidata/ref)
 
 (defambda (wikidata/find . specs)
   (apply find-frames wikidata.index specs))

@@ -9,10 +9,11 @@
 (use-module '{kno/reflect kno/profile kno/mttools kno/statefiles})
 (use-module '{engine engine/readfile})
 
-(use-module '{knodb knodb/branches knodb/typeindex knodb/flexindex})
+(use-module '{knodb knodb/branches knodb/typeindex regex knodb/flexindex})
 (use-module '{brico brico/build/wikidata})
 
 (module-export! '{main})
+(module-export! '{import-wikid-item convert-claims})
 
 (config! 'cachelevel 2)
 (config! 'logthreadinfo #t)
@@ -78,6 +79,13 @@
 (define typeslots '{type datatype rank snaktype type})
 (define refslots '{type datatype rank snaktype type})
 
+(define known-slotids (choice typeslots refslots '{property precision id}))
+(define-init add-known-slotid! 
+  (slambda (slot) 
+    (set+! known-slotids slot)
+    ;; This should normalize it
+    (set! known-slotids known-slotids)))
+
 (define (convert-claims v)
   (cond ((symbol? v) (try (get propmaps.table (upcase v)) v))
 	((string? v)
@@ -101,6 +109,14 @@
 				(tryif (and (string? key) (has-prefix key {"p" "P" "Q" "q"}))
 				  (get-wikidref key))
 				key)))
+		(cond ((oid? slot))
+		      ((overlaps? slot known-slotids))
+		      ((and (string? key) (regex/match #/p[[:digit:]]+/i key))
+		       (->wikidprop key))
+		      ((and (symbol? key)
+			    (regex/match #/p[[:digit:]]+/i (symbol->string key)))
+		       (->wikidprop key))
+		      (else (add-known-slotid! slot)))
 		(when (vector? vals) (set! vals (elts vals)))
 		(cond ((overlaps? slot typeslots)
 		       (add! converted slot (symbolize vals)))
@@ -241,7 +257,6 @@
 	      (file (CONFIG 'INFILE "latest-wikidata.json")))
   (unless (file-exists? file) (irritant file |MissingInputFile|))
   (setup)
-  (lineout "maxitems=" (write maxitems) " pidfile=" (getenv "PIDFILE"))
   (unless (and maxitems (= maxitems 0))
     (runloop maxitems threadcount file)))
   
