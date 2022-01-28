@@ -97,7 +97,7 @@
 
 (defambda (get-index-size opts pools)
   (let ((total-oids 0)
-	(size (getopt opts 'size (config 'INDEXSIZE 3))))
+	(size (getopt opts 'size (config 'INDEXSIZE 6))))
     (do-choices (pool pools)
       (set! total-oids (+ total-oids (pool-load pool))))
     (set! total-oids (max total-oids #mib))
@@ -108,7 +108,8 @@
 (defambda (target-index filename (opts #f) (pools #f) (size) (keyslot))
   (default! size (get-index-size opts pools))
   (default! keyslot (getopt opts 'keyslot (config 'keyslot #f)))
-  (when (not size) (set! size (* 8 #mib)))
+  (cond ((not size) (set! size (* 8 #mib)))
+	((< size 50) (set! size (get-index-size [size size] pools))))
   (unless (search "/" filename)
     (set! filename (mkpath outdir filename)))
   (unless (file-directory? (dirname filename)) 
