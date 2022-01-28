@@ -24,6 +24,7 @@
 (define wikidrefs-index (target-file "wikidrefs.index"))
 (define latlong-index (target-file "latlong.index"))
 (define wordnet-index (target-file "wordnet.index"))
+(define wikidprops-index (target-file "wikidprops.index"))
 
 (define (index-latlong index f)
   (when (test f '{lat long})
@@ -93,12 +94,12 @@
 	       (index-frame wordnet.index f '%sensekeys (getvalues (get f '%sensekeys)))
 	       (index-frame wordnet.index f 'has (getkeys f))
 	       (index-gloss wordnet.index f 'gloss #default 'en))
+	     (when (and (exists? wikidprops.index) (test f 'type 'wikidprop))
+	       (index-frame wikidprops.index f 'has (getkeys f))
+	       (index-frame wikidprops.index f '{wikid wikidref type wikidtype}))
 	     (index-brico core.index f)
 	     (index-latlong latlong.index f)
 	     (index-frame core.index f index-also)
-	     (when (or (test f 'source 'wikidata) (test f 'type 'wikidprop))
-	       (index-brico wikidprops.index f)
-	       (index-frame wikidprops.index f index-also))
 	     (index-wikid wikidprops.index f)
 	     (when (test f 'wikidref) (index-frame wikidrefs.index f 'wikidref)))
 	    ((test f 'type '{slot language lexslot kbsource})
@@ -116,7 +117,8 @@
 	 (wordnet.index (tryif (overlaps? (pool-base pools) @1/0)
 			  (target-index wordnet-index [keyslot wordnet-slotids] pools)))
 	 (wikidrefs.index (target-index wikidrefs-index #[keyslot wikidref size 2] pools))
-	 (wikidprops.index (target-index wikidprops-index [size 8] pools))
+	 (wikidprops.index (tryif (overlaps? (pool-base pools) @1/0)
+			     (target-index wikidprops-index [size 8] pools)))
 	 (index (make-aggregate-index {core.index latlong.index wikidrefs.index}
 				      [register #t])))
     (commit pools) ;; Save updated INDEXES metadata on pools
