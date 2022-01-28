@@ -242,8 +242,8 @@
 	   (new (wikidata->brico val))
 	   (add (difference new cur))
 	   (drop (difference cur new)))
-      (%watch "IMPORT" import "import-slotids" (get import-slotids import)
-	      cur val new add drop)
+      (info%watch "WIKID/COPY!" 
+	import "import-slotids" (get import-slotids import) cur val new add drop)
       (add! frame import add)
       (when dropvals (drop! frame import drop))
       (when doindex (index-frame index frame import add))))

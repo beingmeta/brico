@@ -157,6 +157,10 @@
   {(wikidata/ref "Q28640" "profession") 	;;=#13.1
    (wikidata/ref "Q12737077" "occupation")})
 
+(define (get-occupations)
+  (pick (wikidata/find @?wikid_isa meta-roles) wikidata->brico))
+(module-export! 'get-occupations)
+
 (define (import-occupations)
   (let* ((occupations (pick (wikidata/find @?wikid_isa meta-roles)
 			wikidata->brico))
