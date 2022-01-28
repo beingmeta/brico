@@ -24,6 +24,17 @@
 (config! 'dbloglevel %warn%)
 (config! 'xprofiling #t)
 
+(define-init all-threads {})
+
+(define wikidread-batchsize 1000)
+(varconfig! wikidread:batchsize wikidread-batchsize)
+(define wikidread-queuesize 10000)
+(varconfig! wikidread:queuesize wikidread-queuesize)
+(define wikidread-fillsize 5000)
+(varconfig! wikidread:fillsize wikidread-fillsize)
+(define wikidread-fillstep-perthread 100)
+(varconfig! wikidread:fillstep wikidread-fillstep-perthread)
+
 (define (read-wikidata-db-init)
   (dbctl brico.pool 'readonly #f))
 (config! 'brico:onload read-wikidata-db-init)
@@ -126,7 +137,7 @@
 
 (define lattice-props {wikid-instanceof wikid-subclassof})
 
-(define (import-wikid-item item index has.index)
+(define (import-wikid-item item pos index base.index wikids.index)
   (let* ((id (get item 'id))
 	 (ref (get-wikidref id))
 	 (type (get item 'type))
@@ -134,10 +145,11 @@
     ;;(info%watch "IMPORT-WIKID-ITEM" id ref)
     (unless (test ref 'lastrevid (get item 'lastrevid))
       (store! ref 'wikid id)
-      (store! ref 'type type)
+      (store! ref 'wikidtype type)
       (let ((moment (timestamp)))
 	(store! ref 'modified moment)
 	(unless (test ref 'created) (store! ref 'created moment)))
+      (when pos (store! ref 'filepos pos))
       (store! ref 'lastrevid (get item 'lastrevid))
       (store! ref 'labels (convert-lexslot (get item 'labels)))
       (store! ref 'aliases (convert-lexslot (get item 'aliases)))
@@ -153,13 +165,13 @@
 		       (list (elts (words->vector compound))))))
 	(store! ref 'norms norms)
 	(store! ref 'words words)
-	(index-frame index ref 'wikid id)
+	(index-frame wikids.index ref 'wikid id)
 	(index-frame index ref 'words {words swords fwords})
 	(index-frame index ref 'norms {norms snorms fnorms}))
       (let* ((claims (convert-claims (get item 'claims)))
 	     (props (getkeys claims)))
 	;; Index claim props under a different composite key `(list prop)`
-	(index-frame has.index ref 'has (list props))
+	(index-frame base.index ref 'has (list props))
 	(store! ref 'claims claims)
 	(do-choices (prop props)
 	  (let* ((main (get (get claims prop) 'mainsnak))
@@ -167,16 +179,16 @@
 			(get (get (pickmaps main) 'datavalue) 'value)})
 		 (oidvals (pickoids vals)))
 	    (add! ref prop vals)
-	    (index-frame has.index ref 'has prop)
+	    (index-frame base.index ref 'has prop)
 	    (when (overlaps? prop lattice-props)
 	      (index-frame index ref prop (list oidvals))
 	      (when (eq? prop wikid-subclassof)
 		(add! ref 'type 'wikidclass)
-		(index-frame index ref 'type 'wikidclass)))
+		(index-frame base.index ref 'type 'wikidclass)))
 	    (index-frame index ref prop oidvals)
 	    (index-frame index oidvals 'refs ref))))
-      (index-frame has.index ref 'has (getkeys ref))
-      (index-frame index ref 'type)
+      (index-frame base.index ref 'has (getkeys ref))
+      (index-frame base.index ref '{type wikidtype})
       (unless (in-pool? ref brico.pool)
 	(store! ref '%id (wikidata/makeid ref id)))
       (loginfo |Imported| id " ==> " ref))
@@ -185,15 +197,19 @@
 (define (import-enginefn batch batch-state loop-state task-state)
   (local index (try (get batch-state 'index) (get loop-state 'index)))
   (local wikidprops (get loop-state 'wikidprops.index))
-  (local has.index (get loop-state 'has.index))
-  (doseq (line batch)
-    (let* ((json (onerror (jsonparse line 'symbolize) #f))
+  (local base.index (get loop-state 'base.index))
+  (local wikids.index (get loop-state 'wikids.index))
+  (doseq (entry batch)
+    (let* ((line (if (pair? entry) (cdr entry) entry))
+	   (json (onerror (jsonparse line 'symbolize) #f))
 	   (id (and json (get json 'id))))
       (if json
 	  (import-wikid-item
 	   json
+	   (and (pair? entry) (car entry))
 	   (qc index (tryif (has-prefix id {"P" "p"}) wikidprops))
-	   (qc has.index (tryif (has-prefix id {"P" "p"}) wikidprops)))
+	   (qc base.index (tryif (has-prefix id {"P" "p"}) wikidprops))
+	   (qc wikids.index (tryif (has-prefix id {"P" "p"}) wikidprops)))
 	  (logwarn |BadJSON| line)))))
 
 (define (setup . ignored)
@@ -222,12 +238,13 @@
     (engine/run import-enginefn engine/readfile/fillfn
       `#[statefile ,statefile
 	 stopfile ,(glom jobid ".stop")
-	 donefile ,(glom jobid ".done")
-
-	 loop #[index ,wikidata.index
+	 donefile ,(or (getenv "ENGINE_DONEFILE") (getenv "U8_DONEFILE") (glom jobid ".done"))
+	 loop #[index ,wikidbuild.index
 		wikidprops.index ,wikidprops.index
-		has.index ,has.index]
+		base.index ,base.index
+		wikids.index ,wikids.index]
 	 infile ,(config 'infile "latest-all.json")
+	 posfn  #t
 	 openfn ,open-wikidata-file
 	 branchindexes index
 	 maxitems ,maxitems
@@ -237,11 +254,14 @@
 	 batchsize ,(config 'batchsize 1000)
 	 queuesize ,(config 'queuesize 10000)
 	 fillsize ,(config 'fillsize 5000)
-	 fillstep ,(config 'fillstep (if threadcount (* threadcount 15) 100))
+	 fillstep ,(config 'fillstep 
+			   (if threadcount
+			       (* threadcount wikidread-fillstep-perthread)
+			       wikidread-fillstep-perthread))
 
 	 checkfreq ,(config 'checkfreq 60)
 	 checktests ,(engine/delta 'items (config 'checkcount 100000))
-	 checkpoint ,{wikidata.pool brico.pool wikidata.index wikidprops.index has.index}
+	 checkpoint ,{wikidata.pool brico.pool wikidbuild.index wikidprops.index base.index wikids.index}
 	 stopfns
 	 ,(engine/test 'memusage (config 'maxmem {} config:bytes)
 		       'items (or maxitems {})
@@ -258,7 +278,12 @@
   (unless (file-exists? file) (irritant file |MissingInputFile|))
   (setup)
   (unless (and maxitems (= maxitems 0))
-    (runloop maxitems threadcount file)))
+    (let ((state (runloop maxitems threadcount file)))
+      (logwarn |Engine/Threads/Done|
+	(do-choices (thread (get state 'threads))
+	  (lineout "  " (thread-id thread) "\t" thread)))
+      (logwarn |RunDone| "Trying redundant commit")
+      (commit))))
   
 (when (config 'optimized #t)
   (optimize! '{knodb knodb/flexpool knodb/flexindex knodb/adjuncts 
@@ -284,5 +309,5 @@
    (define (read-item in) (jsonparse (filestream/read in)))
    (define last-input #f)
    (define (import (in in))
-     (import-wikid-item (read-item in) wikidata.index has.index))))
+     (import-wikid-item (read-item in) wikidbuild.index base.index wikids.index))))
 

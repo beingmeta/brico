@@ -12,12 +12,14 @@
 (define %optmods '{brico logger knodb knodb/branches knodb/typeindex knodb/flexindex})
 
 (module-export! '{wikidata.dir wikidata-build
-		  wikidata.pool wikidata.index
-		  words.index norms.index has.index props.index refs.index
+		  wikidata.pool wikidata.index wikidbuild.index
+		  base.index wikids.index
+		  words.index norms.index
+		  props.index refs.index
 		  subclassof.index instanceof.index
 		  ->wikidprop
 		  propmaps.table
-		  wikidata/ref wikid/ref
+		  wikidata/ref wikid/ref ->wikidata
 		  wikidata/find wikid/find
 		  wikidata/makeid
 		  wikidata/class!
@@ -57,10 +59,12 @@
 
 (define-init wikidata.pool #f)
 (define-init wikidata.index #f)
+(define-init wikidbuild.index #f)
 
+(define-init base.index #f)
+(define-init wikids.index #f)
 (define-init words.index #f)
 (define-init norms.index #f)
-(define-init has.index #f)
 (define-init refs.index #f)
 (define-init props.index #f)
 (define-init instanceof.index #f)
@@ -96,6 +100,16 @@
 (define-init set-wikidata-dir!
   (slambda (dir) (setup-wikidata dir)))
 
+(define (open-flex dir root flexopts)
+  {(tryif (file-exists? (mkpath dir (glom root ".index")))
+     (knodb/ref (mkpath dir (glom root ".index")) [readonly #t register #t]))
+   (tryif (file-exists? (mkpath dir (glom root "_tail.index")))
+     (knodb/ref (mkpath dir (glom root "_tail.index")) [readonly #t register #t]))
+   (if (config 'wikidata:build)
+       (flex/open-index (mkpath dir (glom root ".flexindex")) flexopts)
+       (tryif (file-exists? (mkpath dir (glom root ".flexindex")))
+	 (flex/open-index (mkpath dir (glom root ".flexindex")) flexopts)))})
+
 (define (setup-wikidata dir)
   (logwarn |SetupWikidata| dir)
 
@@ -114,54 +128,12 @@
 		 prealloc #t
 		 reserve 120]))
 
-  (set! words.index
-    (if (and (file-exists? (mkpath dir "words.index"))
-	     (file-exists? (mkpath dir "words_tail.index")))
-	{(knodb/ref (mkpath dir "words.index") [readonly #t keyslot 'words register #t])
-	 (knodb/ref (mkpath dir "words_tail.index") [readonly #t keyslot 'words register #t])}
-	(flex/open-index (mkpath dir "words.flexindex")
-			 [indextype 'kindex size (* 6 1024 1024) create #t
-			  readonly (not (config 'wikidata:build))
-			  justfront (config 'wikidata:build)
-			  keyslot 'words register #t
-			  maxkeys (* 4 1024 1024)])))
 
-  (set! norms.index
-    (if (and (file-exists? (mkpath dir "norms.index"))
-	     (file-exists? (mkpath dir "norms_tail.index")))
-	{(knodb/ref (mkpath dir "norms.index") [readonly #t keyslot 'norms register #t])
-	 (knodb/ref (mkpath dir "norms_tail.index") [readonly #t keyslot 'norms register #t])}
-	(flex/open-index (mkpath dir "norms.flexindex")
-			 [indextype 'kindex size (* 6 1024 1024) create #t
-			  readonly (not (config 'wikidata:build))
-			  justfront (config 'wikidata:build)
-			  keyslot 'norms register #t
-			  maxkeys (* 4 1024 1024)])))
 
-  (set! props.index
-    (if (and (file-exists? (mkpath dir "props.index"))
-	     (file-exists? (mkpath dir "props_tail.index")))
-	{(knodb/ref (mkpath dir "props.index") [readonly #t register #t])
-	 (knodb/ref (mkpath dir "props_tail.index") [readonly #t register #t])}
-	(flex/open-index (mkpath dir "props.flexindex")
-			 [indextype 'kindex size (* 6 1024 1024) create #t
-			  readonly (not (config 'wikidata:build))
-			  justfront (config 'wikidata:build)
-			  maxkeys (* 4 1024 1024)
-			  register #t])))
-
-  (set! refs.index
-    (if (and (file-exists? (mkpath dir "refs.index"))
-	     (file-exists? (mkpath dir "refs_tail.index")))
-	{(knodb/ref (mkpath dir "refs.index") [readonly #t keyslot 'refs register #t])
-	 (knodb/ref (mkpath dir "refs_tail.index") [readonly #t keyslot 'refs register #t])}
-	(flex/open-index (mkpath dir "refs.flexindex")
-			 [indextype 'kindex size (* 6 1024 1024) create #t
-			  readonly (not (config 'wikidata:build))
-			  justfront (config 'wikidata:build)
-			  maxkeys (* 4 1024 1024)
-			  keyslot 'refs
-			  register #t])))
+  (set! base.index
+    (knodb/make (mkpath dir "base.index")
+		[indextype 'kindex create #t keyslot '{has type wikidtype}
+		 size #8mib register #t]))
 
   (set! instanceof.index
     (knodb/make (mkpath dir "instanceof.index")
@@ -173,25 +145,58 @@
 		[indextype 'kindex create #t keyslot wikid-subclassof
 		 size #8mib register #t]))
 
-  (set! has.index
-    (knodb/make (mkpath dir "hasprops.index")
-		[indextype 'kindex create #t keyslot 'has register #t]))
+  (set! words.index
+    (open-flex dir "words" [indextype 'kindex size (* 6 1024 1024) create #t
+			    readonly (not (config 'wikidata:build))
+			    justfront (config 'wikidata:build)
+			    keyslot 'words register #t
+			    maxkeys (* 4 1024 1024)]))
+
+  (set! norms.index
+    (open-flex dir "norms" [indextype 'kindex size (* 6 1024 1024) create #t
+			    readonly (not (config 'wikidata:build))
+			    justfront (config 'wikidata:build)
+			    keyslot 'norms register #t
+			    maxkeys (* 4 1024 1024)]))
+
+  (set! props.index
+    (open-flex dir "props"
+	       [indextype 'kindex size (* 6 1024 1024) create #t
+		readonly (not (config 'wikidata:build))
+		justfront (config 'wikidata:build)
+		maxkeys (* 4 1024 1024)
+		register #t]))
+
+  (set! refs.index
+    (open-flex dir "refs"
+	       [indextype 'kindex size (* 6 1024 1024) create #t
+		readonly (not (config 'wikidata:build))
+		justfront (config 'wikidata:build)
+		maxkeys (* 4 1024 1024)
+		keyslot 'refs
+		register #t]))
+
+  (set! wikids.index
+    (open-flex dir "wikids"
+	       [indextype 'kindex size (* 6 1024 1024) create #t
+		readonly (not (config 'wikidata:build))
+		justfront (config 'wikidata:build)
+		maxkeys (* 4 1024 1024)
+		keyslot 'wikid
+		register #t]))
 
   ;; This is used to index newly created properties
   (unless wikidprops.index
-    (let ((new (knodb/ref (mkpath (or (config 'brico:dir) dir) "wikidprops.index")
-			  [indextype 'kindex size #mib create #t
-			   readonly (not (config 'wikidata:build))
-			   background #t
-			   maxload 0.8
-			   register #t])))
-      (config! 'brico:wikidprops new)))
+    (let ((new (pool/index/target brico.pool 'name 'wikidprops)))
+      (logwarn |MakingWikidProps| "For brico.pool")
+      (config! 'brico:wikidprops new)
+      (unless wikidprops.index (error |NoWikidprops|))))
   
   (let ((props {(find-frames core.index 'type 'wikidprop) 
 		(find-frames wikidprops.index 'type 'wikidprop)})
 	(table propmaps.table))
     (prefetch-oids! props)
-    (do-choices (prop props) 
+    (do-choices (prop props)
       (let ((refstrings (get prop '{wikid wikidref})))
 	(store! table refstrings prop)
 	(store! table (upcase refstrings) prop)
@@ -200,9 +205,15 @@
 
   (set! wikid-classes (find-frames props.index 'type 'wikidclass))
 
+  (set! wikidbuild.index
+    (make-aggregate-index
+     {base.index wikids.index words.index norms.index refs.index
+      props.index subclassof.index instanceof.index}
+     #[register #t]))
+  
   (set! wikidata.index
     (make-aggregate-index
-     {words.index norms.index has.index refs.index
+     {base.index wikids.index words.index norms.index refs.index
       props.index wikidprops.index
       subclassof.index instanceof.index}
      #[register #t])))
@@ -228,6 +239,8 @@
 	   (irritant val |NotADirectoryPath|))
 	  (else (set-wikidata-dir! val))))
 
+(varconfig! wikidata:pool wikidata.pool)
+
 ;; Synonyms
 (config-def! 'wikidata:source config-wikidata-source)
 (config-def! 'wikidatasource config-wikidata-source)
@@ -235,7 +248,9 @@
 
 (define (wikidata/save!)
   (knodb/commit! {wikidata.pool wikidata.index brico.pool
-		  words.index norms.index refs.index has.index props.index
+		  base.index wikids.index 
+		  words.index norms.index
+		  refs.index props.index
 		  wikidprops.index}))
 
 (define (wikid/brico/ref arg)
@@ -425,7 +440,7 @@
   (let* ((wordmatches (wikid/find 'words (get bf 'words)))
 	 (toprefs (wikid/toprefs wordmatches count)))
     (append
-     (choice->vector (get bf @?engloss))
+     (choice->vector (get bf en_gloss))
      (forseq (f toprefs)
        (vector `(wikidmap! ,bf ,f)
 	       (qc (pick-one (get (get f 'descriptions) 'en)))

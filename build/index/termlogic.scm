@@ -3,8 +3,12 @@
 
 (in-module 'brico/build/index/termlogic)
 
-(use-module '{texttools varconfig logger optimize text/stringfmts knodb engine})
+(use-module '{texttools varconfig logger optimize text/stringfmts engine})
+;;; This module needs to go early because it (temporarily) disables the brico database
 (use-module 'brico/build/index)
+
+;;; Other stuff
+(use-module '{knodb knodb/search knodb/fuzz})
 (use-module '{brico brico/indexing})
 
 (define (prefetcher oids done)
@@ -17,68 +21,62 @@
 (define relterm-slotids
   (choice relterms parts members ingredients partof memberof))
 
+(define indexrels 
+  (difference {relterm-slotids (?? 'type 'wikidprop)}
+	      (?? 'type '{stringslot numslot lexslot timeslot quantslot textslot})))
+
 (defambda (index-slot index frame slot (values))
   (if (bound? values)
       (index-frame index frame slot values)
       (index-frame index frame slot)))
 
-(defambda (index-phase1 concepts batch-state loop-state task-state)
-  (let ((indexes (get loop-state 'indexes)))
+(defambda (termlogic-phase1 concepts batch-state loop-state task-state)
+  (let ((termlogic (get loop-state 'termlogic)))
     (prefetch-oids! concepts)
     (do-choices (concept (%pick concepts '{words %words names hypernym genls}))
       ;; ALWAYS is transitive
-      (index-frame* indexes concept always always /always)
-      (index-frame indexes concept always (list (get concept always)))
-      ;; indexes the inverse relationship
-      (index-frame indexes concept /always (%get concept always))
-      (index-frame indexes concept /always (list (get concept /always)))
+      (knodb/index*! termlogic concept always always /always)
+      (index-frame termlogic concept always (list (get concept always)))
+      ;; termlogic the inverse relationship
+      (index-frame termlogic concept /always (%get concept always))
+      (index-frame termlogic concept /always (list (get concept /always)))
       ;; This is for cross-domain relationships
-      (index-frame indexes (%get concept /always) always concept)
+      (index-frame termlogic (%get concept /always) always concept)
       ;; ALWAYS implies sometimes
       ;; but can also compute it at search time
-      ;; (index-frame* indexes concept always sometimes sometimes)
+      ;; (index-frame* termlogic concept always sometimes sometimes)
       (let ((somevals (get concept sometimes))
 	    (somenotvals (get concept somenot))
 	    (/somenotvals (%get concept /somenot))
 	    (nevervals (get concept never)))
 	;; SOMETIMES is symmetric
-	(index-frame indexes concept sometimes somevals)
-	(index-frame indexes somevals sometimes concept)
-	(index-frame indexes concept sometimes (list somevals))
+	(index-frame termlogic concept sometimes somevals)
+	(index-frame termlogic somevals sometimes concept)
+	(index-frame termlogic concept sometimes (list somevals))
 	;; NEVER is symmetric
-	(index-frame indexes concept never nevervals)
-	(index-frame indexes nevervals never concept)
-	(index-frame indexes concept never (list nevervals))
+	(index-frame termlogic concept never nevervals)
+	(index-frame termlogic nevervals never concept)
+	(index-frame termlogic concept never (list nevervals))
 	;; SOMENOT is not symmetric
-	(index-frame indexes concept somenot somenotvals)
-	(index-frame indexes somenotvals /somenot concept)
-	(index-frame indexes concept somenot (list somenotvals))
-	;; indexes the inverse relationship
-	(index-frame indexes concept /somenot /somenotvals)
-	(index-frame indexes /somenotvals somenot concept)
-	(index-frame indexes concept /somenot (list /somenotvals)))
-      ;; indexes probablistic slots
-      (index-frame indexes concept commonly)
-      (index-frame indexes concept /commonly (%get concept /commonly))
-      (index-frame indexes concept rarely)
-      (index-frame indexes concept /rarely (%get concept /rarely))
+	(index-frame termlogic concept somenot somenotvals)
+	(index-frame termlogic somenotvals /somenot concept)
+	(index-frame termlogic concept somenot (list somenotvals))
+	;; termlogic the inverse relationship
+	(index-frame termlogic concept /somenot /somenotvals)
+	(index-frame termlogic /somenotvals somenot concept)
+	(index-frame termlogic concept /somenot (list /somenotvals)))
+      ;; termlogic probablistic slots
+      (index-frame termlogic concept commonly)
+      (index-frame termlogic concept /commonly (%get concept /commonly))
+      (index-frame termlogic concept rarely)
+      (index-frame termlogic concept /rarely (%get concept /rarely))
       ;; These are for cross-domain relationships
-      (index-frame indexes (%get concept /commonly) commonly concept)
-      (index-frame indexes (%get concept /rarely) rarely concept)
-      ;; indexes features
-      (index-frame indexes concept relterms (%get concept relterm-slotids))
-      (let ((feature-slotids
-	     (difference (choice (pick (getkeys concept) brico-pools))
-			 normal-slots)))
-	(index-frame indexes concept relterms (%get concept feature-slotids))
-	(do-choices (fs feature-slotids)
-	  (index-frame indexes concept fs (list (get concept fs))))
-	(do-choices (fs feature-slotids)
-	  (index-frame indexes concept fs (get concept fs)))))
+      (index-frame termlogic (%get concept /commonly) commonly concept)
+      (index-frame termlogic (%get concept /rarely) rarely concept))
     (swapout concepts)))
 
-(defambda (index-phase2 concepts batch-state loop-state task-state)
-  (let ((indexes (get loop-state 'indexes)))
+(defambda (termlogic-phase2 concepts batch-state loop-state task-state)
+  (let ((indexes (get loop-state 'termlogic)))
     (prefetch-oids! concepts)
     (do-choices (concept (%pick concepts '{words %words names hypernym genls}))
       (let ((s (get concept sometimes))
@@ -100,26 +98,26 @@
 		    (find-frames indexes /always (get concept probably)))))
     (swapout concepts)))
 
-(define (main . names)
-  (let* ((pools (getdbpool (try (elts names) brico-pool-names)))
-	 (termlogic.index (target-index "termlogic.index" #f pools))
-	 (target termlogic.index))
-    (commit pools) ;; Save metadata
-    (if (config 'phase2) (config! 'appid "index4termlogic.2") (config! 'appid "index4termlogic.1"))
-    (engine/run (if (config 'phase2 #f) index-phase2 index-phase1)
-	(difference (pool-elts pools) (?? 'source @1/1) (?? 'status 'deleted))
-      `#[loop #[indexes ,target]
-	 batchsize 25000 batchrange 4
+(define (main poolname)
+  (config! 'appid
+	   (glom "index-" (basename poolname ".pool") "-termlogic"
+	     (if (config 'phase2) ".2" ".1")))
+  (let* ((pool (getdbpool poolname '{core lattice}))
+	 (termlogic.index (pool/index/target pool 'name 'termlogic)))
+    (knodb/writable! termlogic.index)
+    (engine/run (if (config 'phase2 #f) termlogic-phase2 termlogic-phase1)
+	(difference (pool-elts pool) (?? 'source @1/1) (?? 'status 'deleted))
+      `#[loop #[termlogic ,termlogic.index]
+	 batchsize ,(config 'batchsize 10000)
 	 nthreads ,(config 'nthreads #t)
-	 checkfreq 15
 	 checktests ,(engine/interval (config 'savefreq 60))
-	 checkpoint ,{pools target}
+	 checkpoint ,{pool termlogic.index}
 	 logfns {,engine/log ,engine/logrusage}
 	 logchecks #t
 	 logfreq 25])
     (commit)
     (if (not (config 'phase2))
-	(apply chain "PHASE2=yes" names))))
+	(chain "PHASE2=yes" poolname))))
 (module-export! 'main)
 
 (optimize! '{brico engine fifo brico/indexing})

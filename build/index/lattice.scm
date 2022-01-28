@@ -3,61 +3,44 @@
 
 (in-module 'brico/build/index/lattice)
 
-(use-module '{texttools varconfig logger optimize text/stringfmts knodb knodb/branches engine})
+(use-module '{texttools varconfig logger optimize text/stringfmts engine})
+;; This module needs to go early because it (temporarily) disables the brico database
 (use-module 'brico/build/index)
+
+(use-module '{knodb knodb/search knodb/fuzz knodb/branches})
 (use-module '{brico brico/indexing})
 
 (define (prefetcher oids done)
   (when done (commit) (clearcaches))
   (unless done (index-lattice/prefetch (qc oids))))
 
-(define (index-lattices f thread-index)
-  (index-frame* thread-index f genls* genls specls*)
-  (index-frame* thread-index f partof* partof parts*)
-  (index-frame* thread-index f memberof* memberof members*)
-  (index-frame* thread-index f ingredientof* ingredientof ingredients*))
-
 (defambda (index-batch frames batch-state loop-state task-state)
-  (let* ((index (get loop-state 'index))
-	 (thread-index (if (config 'THREADINDEX #t config:boolean)
-			   (index/branch index)
-			   index)))
+  (let* ((index (try (get batch-state 'index) (get loop-state 'index))))
     (prefetch-oids! frames)
-    (do-choices (f frames) (index-lattices f thread-index))
-    (unless (eq? index thread-index)
-      (branch/commit! thread-index))
+    (do-choices (f frames)
+      (knodb/index*! index f genls* genls specls*)
+      (knodb/index*! index f partof* partof parts*)
+      (knodb/index*! index f memberof* memberof members*)
+      (knodb/index*! index f ingredientof* ingredientof ingredients*))
     (swapout frames)))
 
-(define lattices-index #f)
-
-(defambda (get-index pools)
-  (or lattices-index
-      (let* ((genls.index (target-index "genls.index" #f pools #default 
-					{genls specls genls* specls*}))
-	     (partof.index (target-index "partof.index" #f pools #default 
-					 {parts partof partof* parts*
-					  members memberof members* memberof*
-					  ingredients ingredientof
-					  ingredients* ingredientof*}))
-	     (misc.index (target-index "misc.index" #f pools))
-	     (combined (make-aggregate-index {genls.index partof.index misc.index}
-					     [register #t])))
-	(set! lattices-index combined)
-	combined)))
-
-(define (main . names)
-  (config! 'appid "index-lattice")
-  (let* ((pools (getdbpool (try (elts names) brico-pool-names)))
-	 (frames (if (config 'JUST)
-		     (sample-n (pool-elts pools) (config 'just))
-		     (pool-elts pools)))
-	 (target (get-index pools)))
+(define (main poolname)
+  (config! 'appid (glom "index-" (basename poolname ".pool") "-lattice"))
+  (when (config 'optimize #t)
+    (optimize! '{engine brico brico/indexing brico/lookup
+		 knodb knodb/search 
+		 knodb/fuzz knodb/fuzz/strings knodb/fuzz/terms
+		 knodb/fuzz/text}))
+  (let* ((pool (getdbpool poolname))
+	 (target (pool/index/target pool 'name 'lattice))
+	 (frames (pool-elts pool)))
     (engine/run index-batch (difference frames (?? 'source @1/1) (?? 'status 'deleted))
       `#[loop #[index ,target]
-	 batchsize 25000 batchrange 4
-	 checkfreq 15
+	 batchsize ,(config 'batchsize 10000)
+	 nthreads ,(config 'nthreads #t)
+	 branchindexes index
 	 checktests ,(engine/interval (config 'savefreq 60))
-	 checkpoint ,{pools (get target (getkeys target))}
+	 checkpoint ,{pool target}
 	 logfns {,engine/log ,engine/logrusage}
 	 logfreq ,(config 'logfreq 50)
 	 logchecks #t])
@@ -65,5 +48,9 @@
 (module-export! 'main)
 
 (when (config 'optimize #t config:boolean)
-  (optimize! '{brico engine fifo brico/indexing})
+  (optimize! '{knodb knodb/branches knodb/search 
+	       knodb/fuzz knodb/fuzz/strings knodb/fuzz/terms
+	       knodb/tinygis
+	       fifo engine})
+  (optimize! '{brico brico/indexing})
   (optimize-locals!))

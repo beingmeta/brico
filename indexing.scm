@@ -32,29 +32,27 @@
 
 ;;; Indexing functions
 
-(defambda (index-relation index frame slotids (usevals) (inverse #f) (genslot #f) (oidvals))
+(defambda (index-relation index frame slotids (usevals) (inverse #f) (genslot #f) (oidvals #f))
   (do-choices (slotid slotids)
-    (let* ((values (default usevals (get frame slotid)))
+    (let* ((values (or usevals (get frame slotid)))
 	   (oidvals (pickoids values))
 	   (inverse (and inverse
 			 (try (pick inverse slotid?)
 			      (get slotid 'inverse)
 			      #f)))
-	   (genslot (and genslot
-			 (try (pick genslot slotid?)
-			      genls*))))
+	   (genls+ (and genslot (try (difference genslot genls*) #f)))
+	   (dogenls (or (not genslot) (overlaps? genslot genls*))))
       ;; (when (eq? slotid '%id) (%watch "INDEX-RELATION" index frame slotid values))
       (index-frame index frame slotid values)
       (when inverse 
 	(index-frame index oidvals inverse frame))
-      (when genslot
-	(index-frame index frame slotid (list oidvals))
-	(when (overlaps? genslot genls*)
-	  ;; This is a faster way to get genls*
-	  (index-frame index frame slotid (?? specls* oidvals)))
-	(when (exists? (difference genslot genls*))
-	  (index-frame index frame slotid
-		       (get oidvals (difference genslot genls*))))))))
+      (when (or genls+ dogenls)
+	(index-frame index frame slotid (list oidvals)))
+      (when dogenls
+	;; This is a faster way to get genls*
+	(index-frame index frame slotid (?? specls* oidvals)))
+      (when genls+
+	(index-frame index frame slotid (pickoids (get oidvals genls+)))))))
 
 (defambda (unindex frame slot value (index #f))
   (do-choices (slot slot)
@@ -215,17 +213,6 @@
 ;; These are various other slotids which are useful to index
 ;;(define misc-slotids '{PERTAINYM REGION COUNTRY @1/2c27e{IMPLIES}})
 
-(define (index-concept index concept)
-  (index-brico index concept)  
-  (when (test concept 'wikidref) (index-wikid index concept))  
-  (index-words index concept)
-  (index-relations index concept)
-  (index-refterms index concept)
-  (index-lattice index concept)
-  (index-analytics index concept))
-
-(define wordform-slotids '{word of language rank type sensenum})
-
 (define (index-core index frame)
   (index-frame index frame
     '{type sensecat source
@@ -249,15 +236,18 @@
       (index-frame index frame '%id v)
       (index-frame index frame '%id (downcase stringy))
       (index-frame index frame '%id (string->symbol (downcase stringy)))))
-  (when (or (test frame '%id) (test frame 'type 'slot)
-	    (test frame 'type 'get-methods)
-	    (symbol? (get frame '%id)))
+  (when (and (test frame '%id)
+	     (or (test frame 'type 'slot)
+		 (test frame 'type 'get-methods)
+		 (symbol? (get frame '%id))))
     (let* ((id (get frame '%id))
 	   (stringy  {(pickstrings id) (picksyms id)}))
       (index-frame index frame '%id id)
       (index-frame index frame '%id (downcase stringy))))
   (index-frame index frame '%mnemonics)
-  (index-relation index frame '{key through slots inverse @1/2c27a}))
+  (index-frame index frame '{key through slots inverse @1/2c27a}))
+
+(define wordform-slotids '{word of language rank type sensenum})
 
 (define (index-wordform index frame)
   (when (test frame 'type 'wordform)
@@ -271,6 +261,17 @@
 	 (get derivations 'word)
 	 (for-choices (d derivations)
 	   (cons (get d 'word) (get d 'type)))}))))
+
+;;; Older indexing methods
+
+(define (index-concept index concept)
+  (index-brico index concept)  
+  (when (test concept 'wikidref) (index-wikid index concept))  
+  (index-words index concept)
+  (index-relations index concept)
+  (index-refterms index concept)
+  (index-lattice index concept)
+  (index-analytics index concept))
 
 (define (index-brico index frame)
   (cond ((empty? (getkeys frame))
@@ -419,10 +420,6 @@
    @1/2c286{INGREDIENTS*}
    })
 
-(define relations
-  (difference (reject (pick (?? 'type 'relation) brico.pool) 'type 'termlogic)
-	      lattice-slotids))
-
 ;; These are slotids whose indexed values should include implications
 (define generalize-slotids
   '{@1/2c274{PART-OF}
@@ -452,11 +449,14 @@
 (define special-relationships
   {termlogic-slotids lattice-slotids})
 
+(module-export! '{lattice-slotids generalize-slotids termlogic-slotids invert-slotids})
+
 (define (index-relations index concept (slots))
   (default! slots
-    (reject (pick (difference (pickoids (getkeys concept)) special-relationships)
-	      'type 'relation)
-      'type 'termlogic))
+    (reject (reject (pick (difference (pickoids (getkeys concept)) special-relationships)
+		      'type 'relation)
+	      'type 'termlogic)
+      'type 'wikidprop))
   (do-choices (slotid slots)
     (index-relation index concept slotid (getallvalues concept slotid)
 		    (or (overlaps? slotid invert-slotids)
@@ -577,12 +577,38 @@
 (define (brico/index! f)
   (index-concept (knodb/getindex f) f))
 
+;; (define (brico/index-slot! f slotid (opts #f) (relations) (fields))
+;;   (default! relations (getopt opts 'relations.index (getopt opts 'index)))
+;;   (default! fields (getopt opts 'fields.index (getopt opts 'index)))
+;;   (default! isrelation
+;;     (or (overlaps? slotid invert-slotids)
+;; 	(overlaps? slotid generalize-slotids)
+;; 	(and (oid? slotid)
+;; 	     (test slotid 'type '{relation indexinverse indexgenls}))))
+;;   (let* ((values (get f slotid))
+;; 	 (oids (pickoids values))
+;; 	 (notoids (difference values oids))
+;; 	 (all (getallvalues oids slotid))
+;; 	 (alloids (pickoids all))
+;; 	 (other {notoids (difference all alloids)}))
+;;     (when (exists? oids)
+;;       (if isrelation
+;; 	  (index-relation relations f slotid (choice alloids oids)
+;; 			  (or (overlaps? slotid invert-slotids)
+;; 			      (test slotid 'type 'indexinverse))
+;; 			  (or (overlaps? slotid generalize-slotids)
+;; 			      (test slotid 'type 'indexgenls)))
+;; 	  (index-frame relations f slotid (choice alloids oids))))
+;;     (when (exists? other)
+;;       (index-frame fields f slotid {other (list notoids)}))))
+
 ;;; EXPORTS
 
 ;;; These are helpful for indexing data BRICO-style or indexing
 ;;;  data which use BRICO.
 (module-export!
  '{
+   brico/index-slot!
    index-relation
    indexer unindex
    index-string index-name index-frags index-frame*

@@ -1,13 +1,9 @@
-;; -*- Mode: Scheme; Character-encoding: utf-8; -*-
+;;; -*- Mode: Scheme; Character-encoding: utf-8; -*-
 ;;; Copyright (C) 2005-2020 beingmeta, inc.  All rights reserved.
 ;;; Copyright (C) 2020-2022 Kenneth Haase (ken.haase@alum.mit.edu)
 
 (in-module 'brico)
 ;;; Using the BRICO database from Kno
-
-(define %nosubst '{bricosource brico.source
-		   brico.pool brico.index brico.indexes
-		   freqfns use-wordforms})
 
 (use-module '{texttools reflection logger varconfig knodb knodb/config binio})
 ;; For custom methods
@@ -16,9 +12,13 @@
 (define-init %loglevel %notify%)
 ;;(set! %loglevel %debug%)
 
+(define %nosubst '{bricosource brico.source
+		   brico.pool brico.index brico.indexes
+		   freqfns use-wordforms})
+
 (define %optmods '{knodb logger})
 
-(define (get-keyslot ix) 
+(define (get-keyslot ix)
   (tryif (index? ix) (indexctl ix 'keyslot)))
 
 ;;; Configuring bricosource
@@ -27,16 +27,23 @@
 (define-init brico.pool {})
 (define-init brico.index {})
 (define-init brico.indexes {})
-(define brico.opts #[background #t readonly #t basename "brico.pool"])
+(define-init brico.setup #f)
+
+(define-init brico.opts #[background #t readonly #t basename "brico.pool"])
+
 (define-init brico:readonly #t)
 
-(define-init wikidprops.index #f)
+(define-init wikidprops.index {})
 (varconfig! brico:wikidprops wikidprops.index knodb:index)
 
-(define wikidref.index {})
-(define wordnet.index #f)
 (define core.index {})
+(define lattice.index #f)
 (define termlogic.index #f)
+
+(define slots.index #f)
+
+(define props.index #f)
+(define graph.index #f)
 
 (define en.index #f)
 (define en_norms.index #f)
@@ -46,19 +53,30 @@
 (define norms.index #f)
 (define aliases.index #f)
 
+;; This indexes all wikidprop objects
+(define wikidprops.index #f)
+;; This indexes all wikidrefs (keyslot=wikidref)
+(define wikidrefs.index {})
+
+(define wordnet.index #f)
+
+(module-export!
+ '{core.index lattice.index termlogic.index
+   props.index graph.index 
+   en.index en_norms.index en_aliases.index
+   words.index norms.index aliases.index 
+   wikidrefs.index wikidprops.index
+   wordnet.index
+   names.index})
+
+;;; Adjuncts
+
 (define wordnet.adjunct #f)
 (define attic.adjunct #f)
 
-(module-export!
- '{en.index en_norms.index en_aliases.index
-   words.index norms.index aliases.index 
-   wikidprops.index
-   names.index})
-
-(module-export! '{core.index wikidref.index wordnet.index
-		  lattice.index termlogic.index})
-
 (module-export! '{wordnet.adjunct attic.adjunct})
+
+;;; Ancillary data
 
 (define absfreqs {})
 
@@ -68,10 +86,8 @@
 (defambda (pick-indexes indexes slots)
   (filter-choices (index indexes)
     (and (index? index)
-	 (if (dbctl index 'keyslot)
-	     (overlaps? (dbctl index 'keyslot) slots)
-	     (and (dbctl index 'slots)
-		  (exists? (intersection (elts (dbctl index 'slots)) slots)))))))
+	 (and (dbctl index 'keyslot)
+	      (overlaps? (dbctl index 'keyslot) slots)))))
 
 (define (config-absfreqs var (val))
   (cond ((not (bound? val)) absfreqs)
@@ -103,6 +119,9 @@
   (read-xtype (get-component "data/fragmap.table")))
 (define-init ids-table
   (read-xtype (get-component "data/ids.table")))
+(define-init lexmap (make-hashtable)
+  ;;(read-xtype (get-component "data/lexmap.table"))
+  )
 
 (define index-map indicator-map)
 
@@ -130,7 +149,9 @@
  (do-choices (l (?? 'type 'indexes))
    (store! indicator-map (get l 'key) l))
  (do-choices (l (?? 'type 'fragments))
-   (store! frag-map (get l 'key) l)))
+   (store! frag-map (get l 'key) l))
+ (do-choices (l (?? 'type 'language))
+   (add! lexmap (cons key (get l 'type)) l)))
 
 ;;; Building the idtable
 
@@ -160,8 +181,11 @@
 (define en @1/2c1c7"English")
 (define en_norms @1/44896)
 (define en_aliases @1/2ac91"Aliases in English")
-(define en_frags @1/44bed)
+(define en_frags @1/44bed"English fragments")
+(define en_indicators @1/44a40"English indices")
 (define english-gloss @1/2ffbd"Gloss (English)")
+(define en_gloss @1/2ffbd"Gloss (English)")
+(define en_glosses @1/2ffbd"Gloss (English)")
 (define english-norm @1/44896)
 (define spanish @1/2c1fc"Spanish")
 (define spanish-norms @1/448cb"Common Spanish")
@@ -257,6 +281,9 @@
 	  =is= sameas inverse disjoint 
 	  refterms /refterms sumterms /sumterms diffterms /diffterms
 	  relterms /relterms))
+
+(define lexslots #f)
+(define wikidprops #f)
 
 ;;;; Getting ids from frames
 
@@ -676,7 +703,7 @@
 
 (module-export! '{brico/update-depths!})
 
-;;; EXPORTS
+;;; MORE EXPORTS
 
 (module-export!
  '{brico.pool
@@ -694,7 +721,7 @@
 
 (module-export!
  ;; OIDs by name
- '{english en en_norms en_aliases en_frags
+ '{english en en_norms en_aliases en_gloss en_glosses en_frags en_indicators
    english-gloss english-norm 
    spanish french
    always sometimes never somenot commonly rarely
@@ -736,6 +763,73 @@
   (knodb/readonly! brico.index flag)
   (set! brico:readonly flag))
 
+;;;; Setup the brico pool and indexes, together with module bindings
+
+(define (setup-brico pool (opts #f))
+  (and (pool? pool) (equal? (pool-base pool) @1/0)
+       (not (config 'brico:disabled))
+       (not (eq? brico.setup pool))
+       (let ((indexes (pool/getindexes pool opts)))
+	 (lognotice |BRICO|
+	   "Configured from " (pool-source pool) " with " (|| indexes) " indexes"
+	   (if (getopt opts 'background) " (in background)")
+	   (printout "\n    " pool))
+	 (set! brico.pool pool)
+	 (set! brico.index (pool/getindex pool opts))
+	 (when (getopt opts 'background) (use-index brico.index))
+	 (set! wikidrefs.index (pool/index/find pool 'keyslot 'wikidref))
+	 (set! wikidprops.index (pool/index/find pool 'name 'wikidprops))
+	 (set! core.index (pool/index/find pool 'name 'core))
+	 (set! props.index (pool/index/find pool 'keyslot 'props))
+	 (set! graph.index (pool/index/find pool 'keyslot 'relations))
+	 (set! lattice.index (pool/index/find pool 'name 'lattice))
+	 (set! termlogic.index (pool/index/find pool 'name 'termlogic))
+	 (set! en.index (pool/index/find pool 'keyslot en))
+	 (set! en_norms.index (pool/index/find pool 'keyslot en_norms))
+	 (set! en_aliases.index (pick-indexes indexes en_aliases))
+	 (set! words.index (pool/index/find pool 'name 'babel_words))
+	 (set! norms.index (pool/index/find pool 'name 'babel_norms))
+	 (set! aliases.index (pool/index/find pool 'name 'babel_aliases))
+	 (set! brico.source (pool-source pool))
+	 (set-brico:readonly! brico:readonly)
+	 (set! brico.setup pool)
+	 pool)))
+
+;; (config-def! 'brico:disabled
+;;   (lambda (var (val))
+;;     (cond ((unbound? val) (getopt brico.opts 'disabled))
+;; 	  ((and (not val) (getopt brico.opts 'disabled))
+;; 	   ;; This is the case where we are enabling the database
+;; 	   (store! brico.opts 'disabled val)
+;; 	   (when (config 'brico:source)
+;; 	     (config! 'brico:source (config 'brico:source))))
+;; 	  (else (store! brico.opts 'disabled val)))))
+(config-def! 'brico:disabled
+  (slambda (var (val))
+    (if (unbound? val) (getopt brico.opts 'disabled)
+	(let ((enabling (not val))
+	      (disabled (getopt brico.opts 'disabled)))
+	  (store! brico.opts 'disabled val)
+	  (cond (brico.setup
+		 (unless enabling
+		   (logwarn |BRICO|
+		     "The database is already setup from " brico.setup
+		     "\n Disabling it has no effect (sorry).")))
+		((and enabling disabled)
+		 ;; This is the case where we are enabling the database and
+		 ;;  will set it up if required
+		 (if (config 'brico:source)
+		     (config! 'brico:source (config 'brico:source))
+		     (lognotice |BRICO| "Enabling future database configuration"))))))))
+
+(define-init bricosource-configfn (knodb/configfn setup-brico brico.opts))
+(config-def! 'brico:source bricosource-configfn)
+(config-def! 'bricosource
+  (lambda (var (val))
+    (cond ((unbound? val) (config 'brico:source))
+	  ((not brico.pool) (config! 'brico:source val))
+	  (else #f))))
+
 (config-def! 'brico:readonly
   (lambda (var (val))
     (cond ((unbound? val) brico:readonly)
@@ -749,53 +843,15 @@
 	   (set! brico:readonly val))
 	  (else (set! brico:readonly val)))))
 
-;;;; Setup config
-
-(propconfig! brico:background brico.opts 'background)
-
-(define (setup-brico pool (opts #f))
-  (and (pool? pool) (equal? (pool-base pool) @1/0)
-       (let ((indexes (pool/getindexes pool opts)))
-	 (lognotice |BricoConfig| pool)
-	 (set! brico.pool pool)
-	 (set! brico.index (pool/getindex pool opts))
-	 (set! wikidref.index (pick-indexes indexes 'wikidref))
-	 (set! core.index (pick indexes index-source has-suffix "core.index"))
-	 (set! wikidprops.index (pick indexes index-source has-suffix "wikidprops.index"))
-	 (set! en.index (pick-indexes indexes en))
-	 (set! en_norms.index (pick-indexes indexes en_norms))
-	 (set! en_aliases.index (pick-indexes indexes en_aliases))
-	 (set! words.index (pick-indexes indexes spanish))
-	 (set! norms.index (pick-indexes indexes spanish-norms))
-	 (set! aliases.index (pick-indexes indexes spanish-aliases))
-	 (set! brico.source (pool-source pool))
-	 (set-brico:readonly! brico:readonly)
-	 pool)))
-
-(define-init bricosource-configfn (knodb/configfn setup-brico brico.opts))
-(config-def! 'bricosource bricosource-configfn)
-(config-def! 'brico:source bricosource-configfn)
-
-(config-def! 'brico:dir
-  (defn (brico:dir.configfn var (val))
-    (cond ((unbound? val)
-	   (and brico.source (string? brico.source)
-		(file-exists? brico.source)
-		(dirname brico.source)))
-	  ((not (and (string? val) (directory? val)))
-	   (irritant val |InvalidDirectory| brico:dir.configfn))
-	  ((and brico.source (string? brico.source)
-		(equal? (realpath val) (realpath brico.source)))
-	   (if (equal? val brico.source)
-	       (loginfo |RedundantConfig|
-		 "BRICO:SOURCE is already configured at directory `" val "`'")
-	       (lognotice |RedundantConfig|
-		 "BRICO:SOURCE is already configured at directory `" val "`'"))
-	   #f)
-	  (else
-	   (logwarn |ConfigConflict|
-	     "BRICO:SOURCE is already configured at directory `" val "`'")
-	   #f))))
+(config-def! 'brico:background
+  (slambda (var (val))
+    (cond ((unbound? val) (getopt brico.opts 'background)) 
+	  ((not brico.setup) (store! brico.opts 'background val) val)
+	  ((getopt brico.opts 'background)
+	   (unless val
+	     (logwarn |BRICO| "Cannot remove BRICO from the background"))
+	   (getopt brico.opts 'background))
+	  (else (use-index brico.index) #t))))
 
 ;;;; BRICO load hooks (not yet implemented)
 
@@ -863,3 +919,28 @@
 	 sumterms refterms /sumterms /refterms references
 	 language-map gloss-map norm-map indicator-map})
 
+
+;;;; Dead code
+
+#|
+(config-def! 'brico:dir
+  (defn (brico:dir.configfn var (val))
+    (cond ((unbound? val)
+	   (and brico.source (string? brico.source)
+		(file-exists? brico.source)
+		(dirname brico.source)))
+	  ((not (and (string? val) (directory? val)))
+	   (irritant val |InvalidDirectory| brico:dir.configfn))
+	  ((and brico.source (string? brico.source)
+		(equal? (realpath val) (realpath brico.source)))
+	   (if (equal? val brico.source)
+	       (loginfo |RedundantConfig|
+		 "BRICO:SOURCE is already configured at directory `" val "`'")
+	       (lognotice |RedundantConfig|
+		 "BRICO:SOURCE is already configured at directory `" val "`'"))
+	   #f)
+	  (else
+	   (logwarn |ConfigConflict|
+	     "BRICO:SOURCE is already configured at directory `" val "`'")
+	   #f))))
+|#

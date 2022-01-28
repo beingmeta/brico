@@ -2,16 +2,15 @@
 ;;; -*- Mode: Scheme; -*-
 
 (in-module 'brico/build/index/core)
-
 (use-module '{texttools varconfig logger optimize text/stringfmts knodb engine})
+;; This module needs to go early because it (temporarily) disables the brico database
 (use-module 'brico/build/index)
+
 (use-module '{brico brico/indexing})
-
-(poolctl brico.pool 'readonly #f)
-
 (use-module 'knodb/tinygis)
 
 (define %volatile '{fixup})
+(define %loglevel %notice%)
 
 (define (prefetcher oids done)
   (when done (commit) (clearcaches))
@@ -24,6 +23,7 @@
 (define wikidrefs-index (target-file "wikidrefs.index"))
 (define latlong-index (target-file "latlong.index"))
 (define wordnet-index (target-file "wordnet.index"))
+(define wikidprops-index (target-file "wikidprops.index"))
 
 (define (index-latlong index f)
   (when (test f '{lat long})
@@ -35,25 +35,7 @@
 
 (define (reporterror ex) (message "Error in indexcore: " ex))
 
-(define (get-derived-slots f)
-  {(get language-map (car (pick (get f '%words) pair?)))
-   (get norm-map (car (pick (get f '%norm) pair?)))
-   (get indicator-map (car (pick (get f '%signs) pair?)))
-   (get gloss-map (car (pick (get f '%gloss) pair?)))
-   (get alias-map (car (pick (get f '%aliases) pair?)))
-   (get language-map (getkeys (pick (get f '%words) slotmap?)))
-   (get norm-map (getkeys (pick (get f '%norm) slotmap?)))
-   (get indicator-map (getkeys (pick (get f '%signs) slotmap?)))
-   (get gloss-map (getkeys (pick (get f '%gloss) slotmap?)))
-   (get alias-map (getkeys (pick (get f '%aliases) slotmap?)))})
-
 (define fixup #f)
-(define (indicator-fixup concept)
-  (when (test concept '%index)
-    (let ((indicators (pick (get concept '%index) pair?)))
-      (when (exists? indicators) 
-	(add! concept '%indicators indicators)
-	(drop! concept '%index indicators)))))
 
 (define wn-sources
   {@1/0{WN16} @1/46074"Wordnet 3.0, Copyright 2006 Princeton University" 
@@ -93,12 +75,16 @@
 	       (index-frame wordnet.index f '%sensekeys (getvalues (get f '%sensekeys)))
 	       (index-frame wordnet.index f 'has (getkeys f))
 	       (index-gloss wordnet.index f 'gloss #default 'en))
+	     (when (and (exists? wikidprops.index) (test f 'type 'wikidprop))
+	       (index-frame wikidprops.index f 'has (getkeys f))
+	       (index-frame wikidprops.index f '{wikid wikidref type wikidtype})
+	       (index-frame wikidprops.index f 'wikid
+			    {(upcase (get f 'wikid)) (downcase (get f 'wikid))})
+	       (index-frame wikidprops.index f 'wikidref
+			    {(upcase (get f 'wikidref)) (downcase (get f 'wikidref))}))
 	     (index-brico core.index f)
 	     (index-latlong latlong.index f)
 	     (index-frame core.index f index-also)
-	     (when (or (test f 'source 'wikidata) (test f 'type 'wikidprop))
-	       (index-brico wikidprops.index f)
-	       (index-frame wikidprops.index f index-also))
 	     (index-wikid wikidprops.index f)
 	     (when (test f 'wikidref) (index-frame wikidrefs.index f 'wikidref)))
 	    ((test f 'type '{slot language lexslot kbsource})
@@ -108,20 +94,20 @@
 	    (else (index-frame core.index f 'status 'deleted))))
   (swapout frames)))
 
-(define (main . names)
+(define (main poolname)
   (config! 'appid  "index-core")
-  (let* ((pools (getdbpool (try (elts names) brico-pool-names)))
-	 (core.index (target-index core-index [size #8mib] pools))
-	 (latlong.index (target-index latlong-index #[keyslot {lat long}] pools))
-	 (wordnet.index (tryif (overlaps? (pool-base pools) @1/0)
-			  (target-index wordnet-index [keyslot wordnet-slotids] pools)))
-	 (wikidrefs.index (target-index wikidrefs-index #[keyslot wikidref size 2] pools))
-	 (wikidprops.index (target-index wikidprops-index [size 8] pools))
+  (let* ((pool (getdbpool poolname #f))
+	 (core.index (pool/index/target pool 'name 'core))
+	 (latlong.index (pool/index/target pool 'name 'latlong))
+	 (wikidrefs.index (pool/index/target pool 'keyslot 'wikidref))
 	 (index (make-aggregate-index {core.index latlong.index wikidrefs.index}
-				      [register #t])))
-    (commit pools) ;; Save updated INDEXES metadata on pools
-    (info%watch "MAIN" core.index wikidprops.index latlong.index wordnet.index)
-    (engine/run core-indexer (pool-elts pools)
+				      [register #t]))
+	 (wordnet.index (tryif (overlaps? (pool-base pool) @1/0)
+			  (pool/index/target pool 'name 'wordnet)))
+	 (wikidprops.index (tryif (overlaps? (pool-base pool) @1/0)
+			     (pool/index/target pool 'name 'wikidprops))))
+    (info%watch "MAIN" pool core.index wikidprops.index latlong.index wordnet.index)
+    (engine/run core-indexer (pool-elts pool)
       `#[loop #[core.index ,core.index
 		wordnet.index ,wordnet.index
 		latlong.index ,latlong.index
@@ -130,10 +116,9 @@
 	 branchindexes {core.index wordnet.index wikidprops.index
 			wikidrefs.index 
 			latlong.index}
-	 batchsize ,(config 'batchsize 10000) batchrange 4
-	 checkfreq 15
+	 batchsize ,(config 'batchsize 10000)
 	 checktests ,(engine/interval (config 'savefreq 60))
-	 checkpoint ,{pools core.index wikidprops.index wordnet.index 
+	 checkpoint ,{pool core.index wikidprops.index wordnet.index 
 		      wikidrefs.index latlong.index}
 	 logfns {,engine/log ,engine/logrusage}
 	 logfreq ,(config 'logfreq 50)
@@ -151,6 +136,10 @@
 (module-export! 'main)
 
 (when (config 'optimize #t config:boolean)
-  (optimize! '{brico brico/indexing knodb/tinygis fifo engine})
+  (optimize! '{knodb knodb/branches knodb/search 
+	       knodb/fuzz knodb/fuzz/strings knodb/fuzz/terms
+	       knodb/tinygis
+	       fifo engine})
+  (optimize! '{brico brico/indexing})
   (optimize-locals!))
 
