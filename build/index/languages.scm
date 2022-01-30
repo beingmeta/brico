@@ -3,9 +3,9 @@
 
 (in-module 'brico/build/index/languages)
 
-(use-module '{texttools varconfig logger optimize text/stringfmts knodb engine})
-(use-module 'brico/build/index)
-(use-module '{brico brico/indexing})
+(use-module '{texttools varconfig logger optimize text/stringfmts engine})
+(use-module '{knodb knodb/search knodb/fuzz})
+(use-module '{brico brico/build/index})
 
 (define english @1/2c1c7)
 
@@ -49,26 +49,28 @@
 		    "Indexing " (|| words) " words for " 
 		    (get language-map langid) " (" langid ")" 
 		    " of " f " in " words.index))
-		(index-string words.index f (get language-map langid) words)
-		(index-frame core.index f 'has (get language-map langid))
-		(index-frags frags.index f (get frag-map langid) phrases 2 #t)
-		(when (exists? phrases)
-		  (index-frame core.index f 'has (get frag-map langid)))))
+		(knodb/index+! words.index f  (get language-map langid) 'terms
+			      [language langid fragsize 2]
+			      (get %words langid))))
 	    (when (test %norms langid)
-	      (index-string norms.index f (get norm-map langid)
+	      (knodb/index+! norms.index f (get norm-map langid) 'terms 
+			    [language langid fragsize 2]
 			    (get %norms langid))
 	      (index-frame core.index f 'has (get norm-map langid)))
 	    (when (test %aliases langid)
-	      (index-string aliases.index f (get alias-map langid)
+	      (knodb/index+! aliases.index f (get alias-map langid) 'terms
+			    [language langid frags 2]
 			    (get %aliases langid))
 	      (index-frame core.index f 'has (get alias-map langid)))
 	    (when (test %indicators langid)
-	      (index-string indicators.index f (get indicator-map langid)
+	      (knodb/index+! indicators.index f (get indicator-map langid) 'terms
+			    [language langid frags #f]
 			    (get %indicators langid))
 	      (index-frame core.index f 'has (get gloss-map langid)))
 	    (when (test %glosses langid)
-	      (index-gloss glosses.index f (get gloss-map langid)
-			   (get %glosses langid) #f)
+	      (knodb/index+! indicators.index f (get gloss-map langid) 'text
+			    [language langid frags #f]
+			    (get %glosses langid))
 	      (index-frame core.index f 'has (get gloss-map langid))))))
       (swapout f))))
 
@@ -110,7 +112,11 @@
     (commit)))
 
 (when (config 'optimize #t config:boolean)
-  (optimize! '{brico engine fifo brico/indexing})
+  (optimize! '{knodb knodb/branches knodb/search 
+	       knodb/fuzz knodb/fuzz/strings knodb/fuzz/terms
+	       knodb/tinygis
+	       fifo engine})
+  (optimize! '{brico brico/indexing})
   (optimize-locals!))
 
 (module-export! 'main)

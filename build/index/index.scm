@@ -3,7 +3,7 @@
 (in-module 'brico/build/index)
 
 (use-module '{logger varconfig fifo engine knodb text/stringfmts ezrecords})
-(use-module '{knodb knodb/branches})
+(use-module '{knodb knodb/search knodb/fuzz knodb/branches})
 
 (module-export! '{target-index target-file getdbpool brico-pool-names})
 

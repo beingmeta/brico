@@ -36,25 +36,7 @@
 
 (define (reporterror ex) (message "Error in indexcore: " ex))
 
-(define (get-derived-slots f)
-  {(get language-map (car (pick (get f '%words) pair?)))
-   (get norm-map (car (pick (get f '%norm) pair?)))
-   (get indicator-map (car (pick (get f '%signs) pair?)))
-   (get gloss-map (car (pick (get f '%gloss) pair?)))
-   (get alias-map (car (pick (get f '%aliases) pair?)))
-   (get language-map (getkeys (pick (get f '%words) slotmap?)))
-   (get norm-map (getkeys (pick (get f '%norm) slotmap?)))
-   (get indicator-map (getkeys (pick (get f '%signs) slotmap?)))
-   (get gloss-map (getkeys (pick (get f '%gloss) slotmap?)))
-   (get alias-map (getkeys (pick (get f '%aliases) slotmap?)))})
-
 (define fixup #f)
-(define (indicator-fixup concept)
-  (when (test concept '%index)
-    (let ((indicators (pick (get concept '%index) pair?)))
-      (when (exists? indicators) 
-	(add! concept '%indicators indicators)
-	(drop! concept '%index indicators)))))
 
 (define wn-sources
   {@1/0{WN16} @1/46074"Wordnet 3.0, Copyright 2006 Princeton University" 
@@ -114,13 +96,16 @@
   (let* ((pools (getdbpool (try (elts names) brico-pool-names)))
 	 (core.index (target-index core-index [size #8mib] pools))
 	 (latlong.index (target-index latlong-index #[keyslot {lat long}] pools))
-	 (wordnet.index (tryif (overlaps? (pool-base pools) @1/0)
-			  (target-index wordnet-index [keyslot wordnet-slotids] pools)))
-	 (wikidrefs.index (target-index wikidrefs-index #[keyslot wikidref size 2] pools))
-	 (wikidprops.index (tryif (overlaps? (pool-base pools) @1/0)
-			     (target-index wikidprops-index [size 8] pools)))
+	 (wikidrefs.index (target-index wikidrefs-index 
+					#[keyslot wikidref size 2]
+					pools))
 	 (index (make-aggregate-index {core.index latlong.index wikidrefs.index}
-				      [register #t])))
+				      [register #t]))
+	 (wordnet.index (tryif (overlaps? (pool-base pools) @1/0)
+			  (target-index wordnet-index [keyslot wordnet-slotids]
+					pools)))
+	 (wikidprops.index (tryif (overlaps? (pool-base pools) @1/0)
+			     (target-index wikidprops-index [size 8] pools))))
     (commit pools) ;; Save updated INDEXES metadata on pools
     (info%watch "MAIN" core.index wikidprops.index latlong.index wordnet.index)
     (engine/run core-indexer (pool-elts pools)
@@ -153,6 +138,10 @@
 (module-export! 'main)
 
 (when (config 'optimize #t config:boolean)
-  (optimize! '{brico brico/indexing knodb/tinygis fifo engine})
+  (optimize! '{knodb knodb/branches knodb/search 
+	       knodb/fuzz knodb/fuzz/strings knodb/fuzz/terms
+	       knodb/tinygis
+	       fifo engine})
+  (optimize! '{brico brico/indexing})
   (optimize-locals!))
 

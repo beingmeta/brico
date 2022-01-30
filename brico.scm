@@ -33,10 +33,14 @@
 (define-init wikidprops.index #f)
 (varconfig! brico:wikidprops wikidprops.index knodb:index)
 
-(define wikidref.index {})
-(define wordnet.index #f)
 (define core.index {})
+(define lattice.index #f)
 (define termlogic.index #f)
+
+(define slots.index #f)
+
+(define props.index #f)
+(define graph.index #f)
 
 (define en.index #f)
 (define en_norms.index #f)
@@ -46,19 +50,30 @@
 (define norms.index #f)
 (define aliases.index #f)
 
+;; This indexes all wikidprop objects
+(define wikidprops.index #f)
+;; This indexes all wikidrefs (keyslot=wikidref)
+(define wikidrefs.index {})
+
+(define wordnet.index #f)
+
+(module-export!
+ '{core.index lattice.index termlogic.index
+   props.index graph.index 
+   en.index en_norms.index en_aliases.index
+   words.index norms.index aliases.index 
+   wikidrefs.index wikidprops.index
+   wordnet.index
+   names.index})
+
+;;; Adjuncts
+
 (define wordnet.adjunct #f)
 (define attic.adjunct #f)
 
-(module-export!
- '{en.index en_norms.index en_aliases.index
-   words.index norms.index aliases.index 
-   wikidprops.index
-   names.index})
-
-(module-export! '{core.index wikidref.index wordnet.index
-		  lattice.index termlogic.index})
-
 (module-export! '{wordnet.adjunct attic.adjunct})
+
+;;; Ancillary data
 
 (define absfreqs {})
 
@@ -257,6 +272,9 @@
 	  =is= sameas inverse disjoint 
 	  refterms /refterms sumterms /sumterms diffterms /diffterms
 	  relterms /relterms))
+
+(define lexslots #f)
+(define wikidprops #f)
 
 ;;;; Getting ids from frames
 
@@ -676,7 +694,7 @@
 
 (module-export! '{brico/update-depths!})
 
-;;; EXPORTS
+;;; MORE EXPORTS
 
 (module-export!
  '{brico.pool
@@ -759,9 +777,12 @@
 	 (lognotice |BricoConfig| pool)
 	 (set! brico.pool pool)
 	 (set! brico.index (pool/getindex pool opts))
-	 (set! wikidref.index (pick-indexes indexes 'wikidref))
-	 (set! core.index (pick indexes index-source has-suffix "core.index"))
-	 (set! wikidprops.index (pick indexes index-source has-suffix "wikidprops.index"))
+	 (set! wikidrefs.index (pick-indexes indexes 'wikidref))
+	 (set! core.index (pick indexes index-source has-suffix "/core.index"))
+	 (set! props.index (pick indexes index-source has-suffix "/props.index"))
+	 (set! graph.index (pick indexes index-source has-suffix "/graph.index"))
+	 (set! lattice.index (pick indexes index-source has-suffix "/lattice.index"))
+	 (set! termlogic.index (pick indexes index-source has-suffix "/termlogic.index"))
 	 (set! en.index (pick-indexes indexes en))
 	 (set! en_norms.index (pick-indexes indexes en_norms))
 	 (set! en_aliases.index (pick-indexes indexes en_aliases))

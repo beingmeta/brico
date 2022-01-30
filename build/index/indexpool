@@ -2,7 +2,20 @@
 POOL=${1:-./brico/brico.pool}
 INPUTS=$(dirname ${POOL})
 OUTPUT_DIR="fresh/${INPUTS}"
-OUTPUTS=${2:-${OUTPUT_DIR}}
+if [ -d ${POOL} ]; then
+    POOL="${POOL}/${POOL}.pool";
+fi;
+if [ $# -gt 1 ]; then
+    if [ -f index/$2.scm ]; then
+	PHASE=$2;
+	OUTPUTS=${3:-${OUTPUT_DIR}};
+    else
+	PHASE=$3;
+	OUTPUTS=${2:-${OUTPUT_DIR}};
+    fi;
+else
+    OUTPUTS=${2:-${OUTPUT_DIR}}
+fi;
 if [ ! -d ${OUTPUTS} ]; then
     mkdir ${OUTPUTS};
 fi;
@@ -13,10 +26,15 @@ elif test -f ./brico/brico.pool; then
     export KNO_BRICOSOURCE=./brico/;
 fi
 rm -f ${OUTDIR}/*.index &&
-index/core.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
-index/english.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
-index/lattice.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
-index/relations.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
-index/languages.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
-index/termlogic.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
-mv ${OUTPUTS}/*.index ${INPUTS}
+if [ -n "${PHASE}" ]; then
+    index/${PHASE}.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL};
+else
+    index/core.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
+	index/english.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
+	index/languages.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
+	index/lattice.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
+	index/termlogic.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
+	index/general.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
+	mv ${OUTPUTS}/*.index ${INPUTS}
+fi;
+

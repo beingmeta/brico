@@ -13,17 +13,25 @@
   (when done (commit) (clearcaches))
   (unless done (indexer/prefetch (qc oids))))
 
-(define relations-index (target-file "relations.index"))
-(define misc-slotids '{PERTAINYM REGION COUNTRY FAMILY LASTNAME})
+(define relations.index (target-file "relations.index"))
+(define fields.index (target-file "fields.index"))
+(define misc-relations '{PERTAINYM REGION COUNTRY})
 
 (define done #f)
 (define (bgcommit)
   (until done (sleep 15) (commit)))
 
+(define skip-slotids
+  {termlogic-slotids lattice-slotids
+   (?? 'type 'lexslot)
+   (?? 'type 'wikidprop)))
+
 (define (index-node f index)
+  (let* ((slotids (difference (pickoids (getkeys f)) skip-slotids))
+	 ))
   (index-relations index f)
   (index-refterms index f)
-  (do-choices (slotid misc-slotids)
+  (do-choices (slotid misc-relations)
     (index-frame index f slotid (pickoids (get f slotid)))))
 
 (defambda (relations-indexer frames batch-state loop-state task-state)
@@ -37,9 +45,10 @@
 (define (main . names)
   (config! 'appid "index-relations")
   (let* ((pools (getdbpool (try (elts names) brico-pool-names)))
-	 (relns-index (target-index relations-index #f pools))
-	 (isa-index (target-index "isa.index" #f pools))
-	 (index  (make-aggregate-index {relns-index isa-index}
+	 (fields-index (target-index fields.index #f pools))
+	 (relns-index (target-index relations.index #f pools))
+	 (isa-index (target-index "isa.index" #f pools #default isa))
+	 (index  (make-aggregate-index {relns-index fields-index isa-index}
 				       [register #t])))
     (engine/run relations-indexer (difference (pool-elts pools) (?? 'source @1/1) (?? 'status 'deleted))
       `#[loop #[index ,index]

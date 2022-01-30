@@ -3,7 +3,8 @@
 
 (in-module 'brico/build/index/english)
 
-(use-module '{texttools varconfig logger optimize text/stringfmts knodb engine})
+(use-module '{texttools varconfig logger optimize text/stringfmts engine})
+(use-module '{knodb knodb/search knodb/fuzz})
 (use-module 'brico/build/index)
 (use-module '{brico brico/indexing})
 
@@ -43,13 +44,12 @@
 		       (pick aliases capitalized?)
 		       (pick (get f '{family lastname}) string?)})
 	       (glosses (choice (get f 'gloss) (get (get f '%glosses) 'en))))
-	  (index-string words.index f english words)
-	  (index-string norms.index f norm norms)
-	  (index-string aliases.index f enaliases aliases)
-	  (index-string indicators.index f cues indicators)
-	  (index-frags frags.index f frags words 1 #t)
-	  (index-string names.index f 'names (downcase names))
-	  (index-string names.index f 'names names)
+	  (knodb/index+! words.index f english 'terms #[language en frags #t] words)
+	  (knodb/index+! norms.index f norm 'terms #[language en frags #t] norms)
+	  (knodb/index+! aliases.index f enaliases 'terms #[language en frags #t] aliases)
+	  (knodb/index+! indicators.index f cues 'terms #[language en frags #t] indicators)
+	  (knodb/index+! names.index f 'names 'terms #[language en frags #t normcase {lower default}]
+			names)
 	  (set! word-count (+ word-count (choice-size words)))
 	  (set! name-count (+ name-count (choice-size names)))
 	  (index-frame core.index f 'has
@@ -59,7 +59,7 @@
 			(tryif (exists? aliases) @1/2ac91"Aliases in English")
 			(tryif (exists? glosses) @1/2ffbd"Gloss (English)")})
 	  (do-choices (gloss glosses)
-	    (index-gloss glosses.index f engloss gloss 'en))
+	    (knodb/index+! glosses.index f engloss 'text #[language en] gloss))
 	  (index-string names.index f '{family lastname}))))
     (swapout f)))
 
@@ -108,6 +108,10 @@
 (module-export! 'main)
 
 (when (config 'optimize #t config:boolean)
-  (optimize! '{brico engine fifo brico/indexing})
+  (optimize! '{knodb knodb/branches knodb/search 
+	       knodb/fuzz knodb/fuzz/strings knodb/fuzz/terms
+	       knodb/tinygis
+	       fifo engine})
+  (optimize! '{brico brico/indexing})
   (optimize-locals!))
 

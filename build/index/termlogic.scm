@@ -3,7 +3,8 @@
 
 (in-module 'brico/build/index/termlogic)
 
-(use-module '{texttools varconfig logger optimize text/stringfmts knodb engine})
+(use-module '{texttools varconfig logger optimize text/stringfmts engine})
+(use-module '{knodb knodb/search knodb/fuzz})
 (use-module 'brico/build/index)
 (use-module '{brico brico/indexing})
 
@@ -19,7 +20,7 @@
 
 (define indexrels 
   (difference {relterm-slotids (?? 'type 'wikidprop)}
-	      (?? 'type '{stringslot numslot lexslot textslot})))
+	      (?? 'type '{stringslot numslot lexslot timeslot quantslot textslot})))
 
 (defambda (index-slot index frame slot (values))
   (if (bound? values)
@@ -32,7 +33,7 @@
     (prefetch-oids! concepts)
     (do-choices (concept (%pick concepts '{words %words names hypernym genls}))
       ;; ALWAYS is transitive
-      (index-frame* termlogic concept always always /always)
+      (knodb/index*! termlogic concept always always /always)
       (index-frame termlogic concept always (list (get concept always)))
       ;; termlogic the inverse relationship
       (index-frame termlogic concept /always (%get concept always))
@@ -69,17 +70,7 @@
       (index-frame termlogic concept /rarely (%get concept /rarely))
       ;; These are for cross-domain relationships
       (index-frame termlogic (%get concept /commonly) commonly concept)
-      (index-frame termlogic (%get concept /rarely) rarely concept)
-      ;; termlogic features
-      (index-frame relations concept relterms (%get concept relterm-slotids))
-      (let ((feature-slotids
-	     (intersection (choice (pick (getkeys concept) brico-pools)) indexrels)))
-	(index-frame relations concept relterms (%get concept feature-slotids))
-	(do-choices (fs feature-slotids)
-	  (let ((v (pickoids (get concept fs))))
-	    (when (exists? v) 
-	      (index-frame relations concept fs v)
-	      (index-frame relations concept fs (list v)))))))
+      (index-frame termlogic (%get concept /rarely) rarely concept))
     (swapout concepts)))
 
 (defambda (index-phase2 concepts batch-state loop-state task-state)
@@ -104,6 +95,20 @@
 	(index-frame indexes concept probably
 		    (find-frames indexes /always (get concept probably)))))
     (swapout concepts)))
+
+#|
+(define (index-relterms concept)
+  ;; termlogic features
+  (index-frame relations concept relterms (%get concept relterm-slotids))
+  (let ((feature-slotids
+	 (intersection (choice (pick (getkeys concept) brico-pools)) indexrels)))
+    (index-frame relations concept relterms (%get concept feature-slotids))
+    (do-choices (fs feature-slotids)
+      (let ((v (pickoids (get concept fs))))
+	(when (exists? v) 
+	  (index-frame relations concept fs v)
+	  (index-frame relations concept fs (list v)))))))
+|#
 
 (define (main . names)
   (let* ((pools (getdbpool (try (elts names) brico-pool-names)))
