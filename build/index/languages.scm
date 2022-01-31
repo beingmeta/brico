@@ -11,16 +11,19 @@
 
 (define lexslots '{%words %norms %glosses %glosses %indicators})
 
+(define (get-index indexid batch-state loop-state)
+  (try (get batch-state indexid) (get loop-state indexid)))
+
 (defambda (index-words f (batch-state #f))
   (prefetch-oids! f)
   (let* ((loop-state (get batch-state 'loop))
-	 (core.index (getopt loop-state 'core.index))
-	 (words.index (getopt loop-state 'words.index))
-	 (frags.index (getopt loop-state 'frags.index))
-	 (norms.index  (getopt loop-state 'norms.index))
-	 (aliases.index  (getopt loop-state 'aliases.index))
-	 (indicators.index  (getopt loop-state 'indicators.index))
-	 (glosses.index  (getopt loop-state 'glosses.index)))
+	 (core.index (get-index 'core.index batch-state loop-state))
+	 (words.index (get-index 'words.index batch-state loop-state))
+	 (frags.index (get-index 'frags.index batch-state loop-state))
+	 (norms.index  (get-index 'norms.index batch-state loop-state))
+	 (aliases.index  (get-index 'aliases.index batch-state loop-state))
+	 (indicators.index  (get-index 'indicators.index batch-state loop-state))
+	 (glosses.index  (get-index 'glosses.index batch-state loop-state)))
     (do-choices f
       (when (and (test f 'type) (not (test f 'source @1/1)))
 	(let* ((%words (get f '%words))
@@ -103,7 +106,8 @@
 	 batchsize ,(config 'batchsize 5000)
 	 logfreq ,(config 'logfreq 50)
 	 checkfreq 15
-	 checktests ,(engine/delta 'items 100000)
+	 checktests ,{(engine/delta 'items 100000)
+		      (engine/maxchanges 2000000)}
 	 checkpoint ,{pools core.index words.index frags.index 
 		      indicators.index aliases.index
 		      norms.index glosses.index}

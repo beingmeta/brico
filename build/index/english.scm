@@ -89,9 +89,10 @@
 		aliases.index ,aliases.index
 		glosses.index ,glosses.index
 		names.index ,names.index]
+	 branchindexes {core.index words.index frags.index indicators.index norms.index glosses.index names.index}
 	 counters {words names}
 	 logcounters #(words names)
-	 batchsize ,(config 'batchsize 5000)
+	 batchsize ,(config 'batchsize 10000)
 	 logfreq ,(config 'logfreq 60)
 	 checkfreq 15
 	 checktests ,(engine/delta 'items 100000)
