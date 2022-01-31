@@ -1,10 +1,12 @@
 #!/bin/sh
 POOL=${1:-./brico/brico.pool}
 INPUTS=$(dirname ${POOL})
-OUTPUT_DIR="fresh/${INPUTS}"
-if [ -d ${POOL} ]; then
+if [ -d ${POOL} ] && [ -f "${POOL}/${POOL}.pool" ]; then
     POOL="${POOL}/${POOL}.pool";
+    echo "Indexing pool ${POOL}";
+    ls -l ${POOL};
 fi;
+OUTPUT_DIR="fresh/$(basename ${POOL} .pool)"
 if [ $# -gt 1 ]; then
     if [ -f index/$2.scm ]; then
 	PHASE=$2;
