@@ -44,11 +44,12 @@
 		       (pick aliases capitalized?)
 		       (pick (get f '{family lastname}) string?)})
 	       (glosses (choice (get f 'gloss) (get (get f '%glosses) 'en))))
-	  (knodb/index+! words.index f english 'terms #[language en frags #t] words)
-	  (knodb/index+! norms.index f norm 'terms #[language en frags #t] norms)
-	  (knodb/index+! aliases.index f enaliases 'terms #[language en frags #t] aliases)
-	  (knodb/index+! indicators.index f cues 'terms #[language en frags #t] indicators)
-	  (knodb/index+! names.index f 'names 'terms #[language en frags #t normcase {lower default}]
+	  (knodb/index+! words.index f english 'terms #[language en] words)
+	  (knodb/index+! norms.index f norm 'terms #[language en] norms)
+	  (knodb/index+! aliases.index f enaliases 'terms #[language en] aliases)
+	  (knodb/index+! indicators.index f cues 'terms #[language en] indicators)
+	  (knodb/index+! frags.index f frags 'phrases #[language en fragsize 2] words)
+	  (knodb/index+! names.index f 'names 'terms #[language en fragsize 2 normcase {lower default}]
 			names)
 	  (set! word-count (+ word-count (choice-size words)))
 	  (set! name-count (+ name-count (choice-size names)))
@@ -92,7 +93,7 @@
 	 branchindexes {core.index words.index frags.index indicators.index norms.index glosses.index names.index}
 	 counters {words names}
 	 logcounters #(words names)
-	 batchsize ,(config 'batchsize 10000)
+	 batchsize ,(config 'batchsize 5000)
 	 logfreq ,(config 'logfreq 60)
 	 checkfreq 15
 	 checktests ,(engine/delta 'items 100000)
@@ -110,7 +111,7 @@
 
 (when (config 'optimize #t config:boolean)
   (optimize! '{knodb knodb/branches knodb/search 
-	       knodb/fuzz knodb/fuzz/strings knodb/fuzz/terms
+	       knodb/fuzz knodb/fuzz/strings knodb/fuzz/terms knodb/fuzz/phrases
 	       knodb/tinygis
 	       fifo engine})
   (optimize! '{brico brico/indexing})

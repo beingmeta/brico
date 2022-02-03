@@ -31,7 +31,7 @@
 	 (slotids {(intersection keys misc-slotids)
 		   (difference (pickoids keys) skip-slotids)}))
     (do-choices (slotid slotids)
-      (knodb/index+! props.index f slotid #default opts graph.index))))
+      (knodb/index+! props.index f slotid #default opts #default graph.index))))
 
 (defambda (general-indexer frames batch-state loop-state task-state)
   (let* ((index (get loop-state 'index))

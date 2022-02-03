@@ -44,8 +44,7 @@
 	    (index-frame core.index f 'has '%indicators))
 	  (do-choices (langid (difference langids 'en))
 	    (when (test %words langid)
-	      (let* ((words (get %words langid))
-		     (phrases (pick words compound-string?) ))
+	      (let* ((words (get %words langid)))
 		;;; Debug tracepoint
 		(when (zero? (random 2048))
 		  (logdebug |IndexWords|
@@ -53,27 +52,30 @@
 		    (get language-map langid) " (" langid ")" 
 		    " of " f " in " words.index))
 		(knodb/index+! words.index f  (get language-map langid) 'terms
-			      [language langid fragsize 2]
-			      (get %words langid))))
+			       [language langid]
+			       words)
+		(knodb/index+! frags.index f (get frag-map langid) 'phrases
+			       [language langid fragsize 2]
+			       words)))
 	    (when (test %norms langid)
 	      (knodb/index+! norms.index f (get norm-map langid) 'terms 
-			    [language langid fragsize 2]
-			    (get %norms langid))
+			     [language langid]
+			     (get %norms langid))
 	      (index-frame core.index f 'has (get norm-map langid)))
 	    (when (test %aliases langid)
 	      (knodb/index+! aliases.index f (get alias-map langid) 'terms
-			    [language langid frags 2]
-			    (get %aliases langid))
+			     [language langid]
+			     (get %aliases langid))
 	      (index-frame core.index f 'has (get alias-map langid)))
 	    (when (test %indicators langid)
 	      (knodb/index+! indicators.index f (get indicator-map langid) 'terms
-			    [language langid frags #f]
-			    (get %indicators langid))
+			     [language langid]
+			     (get %indicators langid))
 	      (index-frame core.index f 'has (get gloss-map langid)))
 	    (when (test %glosses langid)
 	      (knodb/index+! indicators.index f (get gloss-map langid) 'text
-			    [language langid frags #f]
-			    (get %glosses langid))
+			     [language langid]
+			     (get %glosses langid))
 	      (index-frame core.index f 'has (get gloss-map langid))))))
       (swapout f))))
 
@@ -84,11 +86,11 @@
   (let* ((pools (getdbpool (try (elts names) brico-pool-names)))
 	 (nconcepts (max (reduce-choice + pools 0 pool-load) #mib))
 	 (core.index (target-index "core.index" #f pools))
-	 (words.index (target-index "lex_words.index" #f pools))
-	 (frags.index (target-index "lex_frags.index" #f pools))
+	 (words.index (target-index "lex_words.index" #f pools 20))
+	 (norms.index (target-index "lex_norms.index" #f pools 20))
+	 (frags.index (target-index "lex_frags.index" #f pools 20))
 	 (indicators.index (target-index "lex_indicators.index" #f pools))
 	 (glosses.index (target-index "lex_glosses.index" #f pools))
-	 (norms.index (target-index "lex_norms.index" #f pools))
 	 (aliases.index (target-index "lex_aliases.index" #f pools))
 	 (oids (difference (pool-elts pools) (?? 'source @1/1) (?? 'status 'deleted))))
     (dbctl (pool/getindexes pools) 'readonly #f)
@@ -117,7 +119,7 @@
 
 (when (config 'optimize #t config:boolean)
   (optimize! '{knodb knodb/branches knodb/search 
-	       knodb/fuzz knodb/fuzz/strings knodb/fuzz/terms
+	       knodb/fuzz knodb/fuzz/strings knodb/fuzz/terms knodb/fuzz/phrases
 	       knodb/tinygis
 	       fifo engine})
   (optimize! '{brico brico/indexing})
