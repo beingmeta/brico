@@ -2,8 +2,8 @@
 
 (in-module 'brico/build/index)
 
-(use-module '{logger varconfig fifo engine knodb text/stringfmts ezrecords})
-(use-module '{knodb knodb/search knodb/fuzz knodb/branches})
+(use-module '{logger texttools varconfig fifo engine knodb text/stringfmts ezrecords})
+(use-module '{knodb knodb/search knodb/fuzz knodb/branches knodb/flexindex})
 
 (module-export! '{target-index target-file getdbpool brico-pool-names})
 
@@ -79,7 +79,13 @@
     ix))
 
 (defambda (access-index filename opts size keyslot)
-  (cond ((and (file-exists? filename) (not (config 'REBUILD #f config:boolean)))
+  (cond ((has-suffix filename ".flexindex")
+	 (flex/open-index filename (cons (frame-create #f
+					   'create #t
+					   'partsize size
+					   'keyslot (tryif keyslot keyslot))
+					 opts)))
+	((and (file-exists? filename) (not (config 'REBUILD #f config:boolean)))
 	 (writable-index filename
 			 `(#[register ,(getopt opts 'register #t)]
 			   . ,opts)))
@@ -109,7 +115,37 @@
   (default! size (get-index-size opts pools))
   (default! keyslot (getopt opts 'keyslot (config 'keyslot #f)))
   (cond ((not size) (set! size (* 8 #mib)))
-	((< size 50) (set! size (get-index-size [size size] pools))))
+	((pair? size))
+	((< size 100) (set! size (get-index-size [size size] pools))))
+  (unless (search "/" filename)
+    (set! filename (mkpath outdir filename)))
+  (unless (file-directory? (dirname filename)) 
+    (mkdirs (dirname filename)))
+  (let ((index (access-index filename opts size keyslot)))
+    (when pools
+      (do-choices (pool pools)
+	(let* ((indexes (or (poolctl pool 'metadata 'indexes) {}))
+	       (root-dir (getopt opts 'indexroot))
+	       (index-path (if root-dir
+			       (strip-prefix (index-source index) root-dir)
+			       (basename (index-source index)))))
+	  (if (has-prefix index-path "/")
+	      (logerr |NoRelative|
+		"Can't find relative reference to " (index-source index)
+		" for the pool " pool)
+	      (if (overlaps? index-path indexes)
+		  (loginfo |ExistingIndex|
+		    "Index path " (write index-path) " is already configured for "
+		    pool)
+		  (begin (poolctl pool 'metadata 'indexes {index-path indexes})
+		    (logwarn |AddIndexPath| (write index-path) " to " pool)))))))
+    index))
+
+(defambda (target-flexindex filename (opts #f) (pools #f) (size) (keyslot))
+  (default! size (get-index-size opts pools))
+  (default! keyslot (getopt opts 'keyslot (config 'keyslot #f)))
+  (cond ((not size) (set! size (* 8 #mib)))
+	((< size 100) (set! size (get-index-size [size size] pools))))
   (unless (search "/" filename)
     (set! filename (mkpath outdir filename)))
   (unless (file-directory? (dirname filename)) 

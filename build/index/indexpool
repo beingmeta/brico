@@ -8,7 +8,7 @@ if [ -d ${POOL} ] && [ -f "${POOL}/${POOL}.pool" ]; then
 fi;
 OUTPUT_DIR="fresh/$(basename ${POOL} .pool)"
 if [ $# -gt 1 ]; then
-    if [ -f index/$2.scm ]; then
+    if [ "$2" = all ] && [ -f index/$2.scm ]; then
 	PHASE=$2;
 	OUTPUTS=${3:-${OUTPUT_DIR}};
     else
@@ -17,6 +17,10 @@ if [ $# -gt 1 ]; then
     fi;
 else
     OUTPUTS=${2:-${OUTPUT_DIR}}
+fi;
+if [ "${PHASE}" = all ]; then
+    DONT_MOVE=yes
+    PHASE=
 fi;
 if [ ! -d ${OUTPUTS} ]; then
     mkdir ${OUTPUTS};
@@ -37,6 +41,5 @@ else
 	index/lattice.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
 	index/termlogic.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
 	index/general.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
-	mv ${OUTPUTS}/*.index ${INPUTS}
+	if [ -z "${DONT_MOVE}" ]; then mv ${OUTPUTS}/*.index ${INPUTS}; fi
 fi;
-
