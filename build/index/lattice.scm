@@ -25,12 +25,19 @@
     (swapout frames)))
 
 (define (main . names)
-  (config! 'appid "index-lattice")
-  (let* ((pools (getdbpool (try (elts names) brico-pool-names)))
-	 (frames (if (config 'JUST)
-		     (sample-n (pool-elts pools) (config 'just))
-		     (pool-elts pools)))
+  (config! 'appid (glom "index-" (basename (car names) ".pool") "-lattice"))
+  (when (config 'optimize #t)
+    (optimize! '{engine brico brico/indexing brico/lookup
+		 knodb knodb/search 
+		 knodb/fuzz knodb/fuzz/strings knodb/fuzz/terms
+		 knodb/fuzz/text}))
+  (let* ((pools (getdbpool (elts names)))
+	 (frames (pool-elts pools))
 	 (target (target-index "lattice.index" #f pools)))
+    (do-choices (pool pools)
+      (dbctl pool 'metadata 'indexes
+	     (choice (dbctl pool 'metadata 'indexes) "lattice.index")))
+    (commit pools) ;; Save metadata
     (engine/run index-batch (difference frames (?? 'source @1/1) (?? 'status 'deleted))
       `#[loop #[index ,target]
 	 batchsize ,(config 'batchsize 10000) batchrange 4

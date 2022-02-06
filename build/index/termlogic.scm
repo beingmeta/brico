@@ -28,8 +28,7 @@
       (index-frame index frame slot)))
 
 (defambda (index-phase1 concepts batch-state loop-state task-state)
-  (let ((termlogic (get loop-state 'termlogic))
-	(relations (get loop-state 'relations)))
+  (let ((termlogic (get loop-state 'termlogic)))
     (prefetch-oids! concepts)
     (do-choices (concept (%pick concepts '{words %words names hypernym genls}))
       ;; ALWAYS is transitive
@@ -111,19 +110,22 @@
 |#
 
 (define (main . names)
+  (config! 'appid (glom "index-" (basename (car names) ".pool") "-termlogic"
+		    (if (config 'phase2) ".2" ".1")))
   (let* ((pools (getdbpool (try (elts names) brico-pool-names)))
-	 (termlogic.index (target-index "termlogic.index" #f pools))
-	 (relations.index (target-index "relations.index" #f pools)))
+	 (termlogic.index (target-index "termlogic.index" #f pools)))
+    (do-choices (pool pools)
+      (dbctl pool 'metadata 'indexes
+	     (choice (dbctl pool 'metadata 'indexes) "termlogic.index")))
     (commit pools) ;; Save metadata
-    (if (config 'phase2) (config! 'appid "index4termlogic.2") (config! 'appid "index4termlogic.1"))
     (engine/run (if (config 'phase2 #f) index-phase2 index-phase1)
 	(difference (pool-elts pools) (?? 'source @1/1) (?? 'status 'deleted))
-      `#[loop #[termlogic ,termlogic.index relations ,relations.index]
+      `#[loop #[termlogic ,termlogic.index]
 	 batchsize 25000 batchrange 4
 	 nthreads ,(config 'nthreads #t)
 	 checkfreq 15
 	 checktests ,(engine/interval (config 'savefreq 60))
-	 checkpoint ,{pools relations.index termlogic.index}
+	 checkpoint ,{pools termlogic.index}
 	 logfns {,engine/log ,engine/logrusage}
 	 logchecks #t
 	 logfreq 25])

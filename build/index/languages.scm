@@ -9,6 +9,8 @@
 
 (define english @1/2c1c7)
 
+(define default-size 50)
+
 (define lexslots '{%words %norms %glosses %glosses %indicators})
 
 (define (get-index indexid batch-state loop-state)
@@ -73,7 +75,7 @@
 			     (get %indicators langid))
 	      (index-frame core.index f 'has (get gloss-map langid)))
 	    (when (test %glosses langid)
-	      (knodb/index+! indicators.index f (get gloss-map langid) 'text
+	      (knodb/index+! glosses.index f (get gloss-map langid) 'text
 			     [language langid]
 			     (get %glosses langid))
 	      (index-frame core.index f 'has (get gloss-map langid))))))
@@ -82,19 +84,27 @@
 (define default-partopts [maxload 1.0 partsize 4000000])
 
 (define (main . names)
-  (config! 'appid "index-multilingual")
+  (config! 'appid (glom "index-" (basename (car names) ".pool") "-multilingual"))
   (when (config 'optimize #t)
-    (optimize! '{engine brico brico/indexing brico/lookup}))
+    (optimize! '{engine brico brico/indexing brico/lookup
+		 knodb knodb/search 
+		 knodb/fuzz knodb/fuzz/strings knodb/fuzz/terms
+		 knodb/fuzz/text knodb/fuzz/graph}))
   (let* ((pools (getdbpool (try (elts names) brico-pool-names)))
 	 (nconcepts (max (reduce-choice + pools 0 pool-load) #mib))
 	 (core.index (target-index "core.index" #f pools))
 	 (words.index (target-index "lex_words.flexindex" default-partopts pools))
 	 (norms.index (target-index "lex_norms.flexindex" default-partopts pools))
 	 (frags.index (target-index "lex_frags.flexindex" default-partopts pools))
-	 (indicators.index (target-index "lex_indicators.flexindex" default-partopts pools))
-	 (glosses.index (target-index "lex_glosses.flexindex" default-partopts pools))
-	 (aliases.index (target-index "lex_aliases.flexindex" default-partopts pools))
+	 (indicators.index (target-index "lex_indicators.index" #f pools))
+	 (glosses.index (target-index "lex_glosses.index" #f pools))
+	 (aliases.index (target-index "lex_aliases.index" #f pools))
 	 (oids (difference (pool-elts pools) (?? 'source @1/1) (?? 'status 'deleted))))
+    (do-choices (pool pools)
+      (dbctl pool 'metadata 'indexes
+	     (choice (dbctl pool 'metadata 'indexes)
+		     (glom "lex_" {"words" "frags" "norms" "aliases" "indicators" "glosses"} ".index"))))
+    (commit pools)
     (dbctl (pool/getindexes pools) 'readonly #f)
     (drop! core.index (cons 'has lexslots))
     (engine/run index-words oids
@@ -105,9 +115,10 @@
 		glosses.index ,glosses.index
 		aliases.index ,aliases.index
 		norms.index ,norms.index]
+	 branchindexes {core.index aliases.index words.index frags.index indicators.index norms.index glosses.index}
 	 counters {words names}
 	 logcounters #(words names)
-	 batchsize ,(config 'batchsize 5000)
+	 batchsize ,(config 'batchsize 1000)
 	 logfreq ,(config 'logfreq 50)
 	 checkfreq 15
 	 checktests ,{(engine/delta 'items 100000)

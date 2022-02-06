@@ -106,6 +106,11 @@
 					pools)))
 	 (wikidprops.index (tryif (overlaps? (pool-base pools) @1/0)
 			     (target-index wikidprops-index [size 8] pools))))
+    (do-choices (pool pools)
+      (dbctl pool 'metadata 'indexes
+	     (choice "core.index" "latlong.index" "wikidrefs.index"
+		     (tryif (overlaps? (pool-base pools) @1/0)
+		       {"wordnet.index" "wikidprops.index"}))))
     (commit pools) ;; Save updated INDEXES metadata on pools
     (info%watch "MAIN" core.index wikidprops.index latlong.index wordnet.index)
     (engine/run core-indexer (pool-elts pools)

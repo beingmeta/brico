@@ -1,14 +1,14 @@
 #!/bin/sh
 POOL=${1:-./brico/brico.pool}
-INPUTS=$(dirname ${POOL})
 if [ -d ${POOL} ] && [ -f "${POOL}/${POOL}.pool" ]; then
     POOL="${POOL}/${POOL}.pool";
     echo "Indexing pool ${POOL}";
     ls -l ${POOL};
 fi;
+INPUTS=$(dirname ${POOL})
 OUTPUT_DIR="fresh/$(basename ${POOL} .pool)"
 if [ $# -gt 1 ]; then
-    if [ "$2" = all ] && [ -f index/$2.scm ]; then
+    if [ "$2" = all ] || [ -f index/$2.scm ]; then
 	PHASE=$2;
 	OUTPUTS=${3:-${OUTPUT_DIR}};
     else
@@ -18,7 +18,7 @@ if [ $# -gt 1 ]; then
 else
     OUTPUTS=${2:-${OUTPUT_DIR}}
 fi;
-if [ "${PHASE}" = all ]; then
+if [ "${PHASE}" = "all" ]; then
     DONT_MOVE=yes
     PHASE=
 fi;
@@ -31,15 +31,18 @@ elif test -f ./brico/brico.pool; then
     export BRICOSOURCE=./brico/;
     export KNO_BRICOSOURCE=./brico/;
 fi
-rm -f ${OUTDIR}/*.index &&
 if [ -n "${PHASE}" ]; then
     index/${PHASE}.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL};
 else
+    rm -f ${OUTDIR}/*.index &&
     index/core.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
 	index/english.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
 	index/languages.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
 	index/lattice.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
 	index/termlogic.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
 	index/general.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
-	if [ -z "${DONT_MOVE}" ]; then mv ${OUTPUTS}/*.index ${INPUTS}; fi
+	if [ -z "${DONT_PACK}" ]; then
+	    for flex in ${OUTPUTS}/*.flexindex; do knodb flexpack ${flex}; done &&
+	    if [ -z "${DONT_MOVE}" ]; then mv ${OUTPUTS}/*.index ${INPUTS}; fi
+	fi;
 fi;

@@ -82,7 +82,7 @@
   (cond ((has-suffix filename ".flexindex")
 	 (flex/open-index filename (cons (frame-create #f
 					   'create #t
-					   'partsize size
+					   'partsize (getopt opts 'partsize size)
 					   'keyslot (tryif keyslot keyslot))
 					 opts)))
 	((and (file-exists? filename) (not (config 'REBUILD #f config:boolean)))
@@ -101,22 +101,19 @@
 			      `(#[register ,(getopt opts 'register #t)]
 				. ,opts)))))
 
-(defambda (get-index-size opts pools)
-  (let ((total-oids 0)
-	(size (getopt opts 'size (config 'INDEXSIZE 6))))
-    (do-choices (pool pools)
-      (set! total-oids (+ total-oids (pool-load pool))))
+(defambda (get-index-size pools (size 6.0))
+  (let ((total-oids 0))
+    (when pools
+      (do-choices (pool pools)
+	(set! total-oids (+ total-oids (pool-load pool)))))
     (set! total-oids (max total-oids #mib))
-    (if (or (inexact? size) (< size 100))
+    (if (inexact? size)
 	(->exact (ceiling (* size total-oids)))
 	size)))
 
 (defambda (target-index filename (opts #f) (pools #f) (size) (keyslot))
-  (default! size (get-index-size opts pools))
+  (default! size (get-index-size pools (getopt opts 'size 6.0)))
   (default! keyslot (getopt opts 'keyslot (config 'keyslot #f)))
-  (cond ((not size) (set! size (* 8 #mib)))
-	((pair? size))
-	((< size 100) (set! size (get-index-size [size size] pools))))
   (unless (search "/" filename)
     (set! filename (mkpath outdir filename)))
   (unless (file-directory? (dirname filename)) 

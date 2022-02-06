@@ -65,9 +65,12 @@
     (swapout f)))
 
 (define (main . names)
-  (config! 'appid "index-english")
+  (config! 'appid (glom "index-" (basename (car names) ".pool") "-english"))
   (when (config 'optimize #t)
-    (optimize! '{engine brico brico/indexing brico/lookup}))
+    (optimize! '{engine brico brico/indexing brico/lookup
+		 knodb knodb/search 
+		 knodb/fuzz knodb/fuzz/strings knodb/fuzz/terms
+		 knodb/fuzz/text knodb/fuzz/graph}))
   (let* ((pools (getdbpool (try (elts names) brico-pool-names)))
 	 (nconcepts (max (reduce-choice + pools 0 pool-load) #mib))
 	 (core.index (target-index "core.index" #f pools))
@@ -80,6 +83,11 @@
 	 (glosses.index (target-index "en_glosses.index" [keyslot engloss] pools))
 	 (names.index (target-index "names.index" #f pools))
 	 (oids (difference (pool-elts pools) (?? 'source @1/1) (?? 'status 'deleted))))
+    (do-choices (pool pools)
+      (dbctl pool 'metadata 'indexes
+	     (choice (dbctl pool 'metadata 'indexes)
+		     (glom "en_" {"words" "frags" "norms" "aliases" "indicators" "glosses"} ".index"))))
+    (commit pools)
     (dbctl (pool/getindexes pools) 'readonly #f)
     (engine/run index-english oids
       `#[loop #[core.index ,core.index
@@ -90,7 +98,8 @@
 		aliases.index ,aliases.index
 		glosses.index ,glosses.index
 		names.index ,names.index]
-	 branchindexes {core.index words.index frags.index indicators.index norms.index glosses.index names.index}
+	 branchindexes {core.index words.index frags.index indicators.index norms.index
+			aliases.index glosses.index names.index}
 	 counters {words names}
 	 logcounters #(words names)
 	 batchsize ,(config 'batchsize 5000)

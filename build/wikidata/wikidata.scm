@@ -203,7 +203,7 @@
 			  readonly (not (config 'wikidata:build))
 			  justfront (config 'wikidata:build)
 			  maxkeys (* 4 1024 1024)
-			  keyslot 'wikids
+			  keyslot 'wikid
 			  register #t])))
 
   ;; This is used to index newly created properties
