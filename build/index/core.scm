@@ -91,29 +91,24 @@
 	    (else (index-frame core.index f 'status 'deleted))))
   (swapout frames)))
 
-(define (main . names)
+(define (main poolname)
   (config! 'appid  "index-core")
-  (let* ((pools (getdbpool (try (elts names) brico-pool-names)))
-	 (core.index (target-index core-index [size #8mib] pools))
-	 (latlong.index (target-index latlong-index #[keyslot {lat long}] pools))
+  (let* ((pool (getdbpool poolname))
+	 (core.index (target-index core-index [size #8mib] pool))
+	 (latlong.index (target-index latlong-index #[keyslot {lat long}] pool))
 	 (wikidrefs.index (target-index wikidrefs-index 
 					#[keyslot wikidref size 2]
-					pools))
+					pool))
 	 (index (make-aggregate-index {core.index latlong.index wikidrefs.index}
 				      [register #t]))
-	 (wordnet.index (tryif (overlaps? (pool-base pools) @1/0)
+	 (wordnet.index (tryif (overlaps? (pool-base pool) @1/0)
 			  (target-index wordnet-index [keyslot wordnet-slotids]
-					pools)))
-	 (wikidprops.index (tryif (overlaps? (pool-base pools) @1/0)
-			     (target-index wikidprops-index [size 8] pools))))
-    (do-choices (pool pools)
-      (dbctl pool 'metadata 'indexes
-	     (choice "core.index" "latlong.index" "wikidrefs.index"
-		     (tryif (overlaps? (pool-base pools) @1/0)
-		       {"wordnet.index" "wikidprops.index"}))))
-    (commit pools) ;; Save updated INDEXES metadata on pools
+					pool (* 1.2 (|| wordnet-slotids)))))
+	 (wikidprops.index (tryif (overlaps? (pool-base pool) @1/0)
+			     (target-index wikidprops-index [size 4] pool))))
     (info%watch "MAIN" core.index wikidprops.index latlong.index wordnet.index)
-    (engine/run core-indexer (pool-elts pools)
+    (commit pool) ;; Save updated INDEXES metadata on pool
+    (engine/run core-indexer (pool-elts pool)
       `#[loop #[core.index ,core.index
 		wordnet.index ,wordnet.index
 		latlong.index ,latlong.index
@@ -122,10 +117,9 @@
 	 branchindexes {core.index wordnet.index wikidprops.index
 			wikidrefs.index 
 			latlong.index}
-	 batchsize ,(config 'batchsize 10000) batchrange 4
-	 checkfreq 15
+	 batchsize ,(config 'batchsize 10000)
 	 checktests ,(engine/interval (config 'savefreq 60))
-	 checkpoint ,{pools core.index wikidprops.index wordnet.index 
+	 checkpoint ,{pool core.index wikidprops.index wordnet.index 
 		      wikidrefs.index latlong.index}
 	 logfns {,engine/log ,engine/logrusage}
 	 logfreq ,(config 'logfreq 50)

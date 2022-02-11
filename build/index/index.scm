@@ -5,7 +5,9 @@
 (use-module '{logger texttools varconfig fifo engine knodb text/stringfmts ezrecords})
 (use-module '{knodb knodb/search knodb/fuzz knodb/branches knodb/flexindex})
 
-(module-export! '{target-index target-file getdbpool brico-pool-names})
+(module-export! '{target-index lex-index lex-indexes
+		  target-file getdbpool
+		  brico-pool-names get-index-size get-pool-size})
 
 (config! 'cachelevel 2)
 (config! 'thread:logexit #f)
@@ -73,12 +75,20 @@
 
 (define (target-file name) (mkpath outdir name))
 
+(define-init flexindex-threshold #f) ;; 20000000
+(define-init flexindex-partsize  10000000) ;; 20000000
+
 (define (writable-index . args)
   (let ((ix (apply open-index args)))
     (indexctl ix 'readonly #f)
     ix))
 
 (defambda (access-index filename opts size keyslot)
+  (unless (has-suffix filename {".index" ".fileindex"})
+    (cond ((and flexindex-threshold (> size flexindex-threshold))
+	   (set! filename (glom filename ".flexindex"))
+	   (set! size flexindex-partsize))
+	  (else (set! filename (glom filename ".index")))))
   (cond ((has-suffix filename ".flexindex")
 	 (flex/open-index filename (cons (frame-create #f
 					   'create #t
@@ -101,68 +111,68 @@
 			      `(#[register ,(getopt opts 'register #t)]
 				. ,opts)))))
 
-(defambda (get-index-size pools (size 6.0))
+(defambda (get-pool-size pools (minval #mib))
   (let ((total-oids 0))
     (when pools
       (do-choices (pool pools)
 	(set! total-oids (+ total-oids (pool-load pool)))))
-    (set! total-oids (max total-oids #mib))
-    (if (inexact? size)
-	(->exact (ceiling (* size total-oids)))
-	size)))
+    (max total-oids minval)))
 
-(defambda (target-index filename (opts #f) (pools #f) (size) (keyslot))
-  (default! size (get-index-size pools (getopt opts 'size 6.0)))
+(define (get-index-size (poolsize #1mib) (indexsize 8.0))
+  (if (inexact? indexsize)
+      (->exact (ceiling (* indexsize poolsize)))
+      (if (< indexsize 100)
+	  (max (* 3 poolsize) indexsize)
+	  indexsize)))
+
+(define (target-index filename (opts #f) (pool #f) (indexsize) (keyslot))
+  (default! indexsize (getopt opts 'indexsize 10.0))
   (default! keyslot (getopt opts 'keyslot (config 'keyslot #f)))
+  (local poolsize (if pool (pool-load pool) #1mib))
   (unless (search "/" filename)
     (set! filename (mkpath outdir filename)))
   (unless (file-directory? (dirname filename)) 
     (mkdirs (dirname filename)))
-  (let ((index (access-index filename opts size keyslot)))
-    (when pools
-      (do-choices (pool pools)
-	(let* ((indexes (or (poolctl pool 'metadata 'indexes) {}))
-	       (root-dir (getopt opts 'indexroot))
-	       (index-path (if root-dir
-			       (strip-prefix (index-source index) root-dir)
-			       (basename (index-source index)))))
-	  (if (has-prefix index-path "/")
-	      (logerr |NoRelative|
-		"Can't find relative reference to " (index-source index)
-		" for the pool " pool)
-	      (if (overlaps? index-path indexes)
-		  (loginfo |ExistingIndex|
-		    "Index path " (write index-path) " is already configured for "
-		    pool)
-		  (begin (poolctl pool 'metadata 'indexes {index-path indexes})
-		    (logwarn |AddIndexPath| (write index-path) " to " pool)))))))
+  (let ((index (access-index filename opts (get-index-size poolsize indexsize) keyslot)))
+    (when pool
+      (let* ((indexes (or (poolctl pool 'metadata 'indexes) {}))
+	     (root-dir (getopt opts 'indexroot))
+	     (index-path (if root-dir
+			     (strip-prefix (index-source index) root-dir)
+			     (basename (index-source index)))))
+	(if (has-prefix index-path "/")
+	    (logerr |NoRelative|
+	      "Can't find relative reference to " (index-source index)
+	      " for the pool " pool)
+	    (if (overlaps? index-path indexes)
+		(loginfo |ExistingIndex|
+		  "Index path " (write index-path) " is already configured for "
+		  pool)
+		(begin (poolctl pool 'metadata 'indexes {index-path indexes})
+		  (logwarn |AddIndexPath| (write index-path) " to " pool))))))
     index))
 
-(defambda (target-flexindex filename (opts #f) (pools #f) (size) (keyslot))
-  (default! size (get-index-size opts pools))
-  (default! keyslot (getopt opts 'keyslot (config 'keyslot #f)))
-  (cond ((not size) (set! size (* 8 #mib)))
-	((< size 100) (set! size (get-index-size [size size] pools))))
-  (unless (search "/" filename)
-    (set! filename (mkpath outdir filename)))
-  (unless (file-directory? (dirname filename)) 
-    (mkdirs (dirname filename)))
-  (let ((index (access-index filename opts size keyslot)))
-    (when pools
-      (do-choices (pool pools)
-	(let* ((indexes (or (poolctl pool 'metadata 'indexes) {}))
-	       (root-dir (getopt opts 'indexroot))
-	       (index-path (if root-dir
-			       (strip-prefix (index-source index) root-dir)
-			       (basename (index-source index)))))
-	  (if (has-prefix index-path "/")
-	      (logerr |NoRelative|
-		"Can't find relative reference to " (index-source index)
-		" for the pool " pool)
-	      (if (overlaps? index-path indexes)
-		  (loginfo |ExistingIndex|
-		    "Index path " (write index-path) " is already configured for "
-		    pool)
-		  (begin (poolctl pool 'metadata 'indexes {index-path indexes})
-		    (logwarn |AddIndexPath| (write index-path) " to " pool)))))))
-    index))
+(define (lex-index type language (opts #f) (pool #f) (indexsize) (keyslot) (filename) (langid))
+  (default! indexsize (getopt opts 'size 10.0))
+  (default! langid (and language (if (symbol? language) language (get language '%langid))))
+  (default! keyslot
+    (try
+     (cond ((and type language) (?? '%langid langid 'type type))
+	   (type (?? 'type 'lexslot 'type type))
+	   (language (?? 'type 'lexslot '%langid langid))
+	   (else #f))
+     #f))
+  (default! filename
+    (cond ((and type language) (glom langid "_" type))
+		(language (glom langid "_terms"))
+		(type (glom "lex_" type))
+		(else "terms")))
+  (target-index filename opts pool indexsize (qc keyslot)))
+
+(defambda (lex-indexes types languages (opts #f) (pool #f) (indexsize))
+  (default! indexsize (getopt opts 'size #default))
+  (let ((indexes (lex-index types languages opts pool indexsize)))
+    (if (ambiguous? indexes)
+	(make-aggregate-index indexes)
+	indexes)))
+

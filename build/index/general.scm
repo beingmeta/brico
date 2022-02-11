@@ -15,7 +15,7 @@
   (unless done (indexer/prefetch (qc oids))))
 
 (define graph.index (target-file "graph.index"))
-(define props.index (target-file "props.index"))latt
+(define props.index (target-file "props.index"))
 (define misc-slotids '{PERTAINYM REGION COUNTRY})
 
 (define done #f)
@@ -44,27 +44,24 @@
     (branch/merge! graph.index)
     (swapout frames)))
 
-(define (main . names)
-  (config! 'appid (glom "index-" (basename (car names) ".pool") "-general"))
+(define (main poolname)
+  (config! 'appid (glom "index-" (basename poolname ".pool") "-general"))
   (when (config 'optimize #t)
     (optimize! '{engine brico brico/indexing brico/lookup
 		 knodb knodb/search 
 		 knodb/fuzz knodb/fuzz/strings knodb/fuzz/terms
 		 knodb/fuzz/text knodb/fuzz/graph}))
-  (let* ((pools (getdbpool (try (elts names) brico-pool-names)))
-	 (props.index (target-index props.index #f pools))
-	 (graph.index (target-index graph.index #f pools)))
-    (do-choices (pool pools)
-      (dbctl pool 'metadata 'indexes
-	     (choice (dbctl pool 'metadata 'indexes) "props.index" "graph.index")))
-    (commit pools) ;; Save metadata
+  (let* ((pool (getdbpool poolname))
+	 (props.index (target-index props.index #f pool 20.0))
+	 (graph.index (target-index graph.index #f pool 10.0)))
+    (commit pool) ;; Save metadata
     (engine/run general-indexer 
-	(difference (pool-elts pools) (?? 'source @1/1) (?? 'status 'deleted))
+	(difference (pool-elts pool) (?? 'source @1/1) (?? 'status 'deleted))
       `#[loop #[props.index ,props.index graph.index ,graph.index]
 	 batchsize 2000 batchrange 3
 	 checkfreq 15
 	 checktests ,(engine/interval (config 'savefreq 60))
-	 checkpoint ,{pools graph.index props.index}
+	 checkpoint ,{pool graph.index props.index}
 	 logfns {,engine/log ,engine/logrusage}
 	 logchecks #t
 	 logfreq 25])

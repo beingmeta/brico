@@ -24,27 +24,25 @@
       (knodb/index*! index f ingredientof* ingredientof ingredients*))
     (swapout frames)))
 
-(define (main . names)
-  (config! 'appid (glom "index-" (basename (car names) ".pool") "-lattice"))
+(define (main poolname)
+  (config! 'appid (glom "index-" (basename poolname ".pool") "-lattice"))
   (when (config 'optimize #t)
     (optimize! '{engine brico brico/indexing brico/lookup
 		 knodb knodb/search 
 		 knodb/fuzz knodb/fuzz/strings knodb/fuzz/terms
 		 knodb/fuzz/text}))
-  (let* ((pools (getdbpool (elts names)))
-	 (frames (pool-elts pools))
-	 (target (target-index "lattice.index" #f pools)))
-    (do-choices (pool pools)
-      (dbctl pool 'metadata 'indexes
-	     (choice (dbctl pool 'metadata 'indexes) "lattice.index")))
-    (commit pools) ;; Save metadata
+  (let* ((pool (getdbpool poolname))
+	 (poolsize (pool-load pool))
+	 (frames (pool-elts pool))
+	 (target (target-index "lattice.index" #f pool 4.0)))
+    (commit pool) ;; Save metadata
     (engine/run index-batch (difference frames (?? 'source @1/1) (?? 'status 'deleted))
       `#[loop #[index ,target]
-	 batchsize ,(config 'batchsize 10000) batchrange 4
+	 batchsize ,(config 'batchsize 10000)
+	 nthreads ,(config 'nthreads #t)
 	 branchindexes index
-	 checkfreq 15
 	 checktests ,(engine/interval (config 'savefreq 60))
-	 checkpoint ,{pools (get target (getkeys target))}
+	 checkpoint ,{pool target}
 	 logfns {,engine/log ,engine/logrusage}
 	 logfreq ,(config 'logfreq 50)
 	 logchecks #t])

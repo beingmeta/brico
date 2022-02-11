@@ -27,7 +27,7 @@
       (index-frame index frame slot values)
       (index-frame index frame slot)))
 
-(defambda (index-phase1 concepts batch-state loop-state task-state)
+(defambda (termlogic-phase1 concepts batch-state loop-state task-state)
   (let ((termlogic (get loop-state 'termlogic)))
     (prefetch-oids! concepts)
     (do-choices (concept (%pick concepts '{words %words names hypernym genls}))
@@ -72,7 +72,7 @@
       (index-frame termlogic (%get concept /rarely) rarely concept))
     (swapout concepts)))
 
-(defambda (index-phase2 concepts batch-state loop-state task-state)
+(defambda (termlogic-phase2 concepts batch-state loop-state task-state)
   (let ((indexes (get loop-state 'termlogic)))
     (prefetch-oids! concepts)
     (do-choices (concept (%pick concepts '{words %words names hypernym genls}))
@@ -95,43 +95,27 @@
 		    (find-frames indexes /always (get concept probably)))))
     (swapout concepts)))
 
-#|
-(define (index-relterms concept)
-  ;; termlogic features
-  (index-frame relations concept relterms (%get concept relterm-slotids))
-  (let ((feature-slotids
-	 (intersection (choice (pick (getkeys concept) brico-pools)) indexrels)))
-    (index-frame relations concept relterms (%get concept feature-slotids))
-    (do-choices (fs feature-slotids)
-      (let ((v (pickoids (get concept fs))))
-	(when (exists? v) 
-	  (index-frame relations concept fs v)
-	  (index-frame relations concept fs (list v)))))))
-|#
-
-(define (main . names)
-  (config! 'appid (glom "index-" (basename (car names) ".pool") "-termlogic"
-		    (if (config 'phase2) ".2" ".1")))
-  (let* ((pools (getdbpool (try (elts names) brico-pool-names)))
-	 (termlogic.index (target-index "termlogic.index" #f pools)))
-    (do-choices (pool pools)
-      (dbctl pool 'metadata 'indexes
-	     (choice (dbctl pool 'metadata 'indexes) "termlogic.index")))
-    (commit pools) ;; Save metadata
-    (engine/run (if (config 'phase2 #f) index-phase2 index-phase1)
-	(difference (pool-elts pools) (?? 'source @1/1) (?? 'status 'deleted))
+(define (main poolname)
+  (config! 'appid
+	   (glom "index-" (basename poolname ".pool") "-termlogic"
+	     (if (config 'phase2) ".2" ".1")))
+  (let* ((pool (getdbpool poolname))
+	 (poolsize (get-pool-size pool))
+	 (termlogic.index (target-index "termlogic.index" #f pool 8.0)))
+    (commit pool) ;; Save metadata
+    (engine/run (if (config 'phase2 #f) termlogic-phase2 termlogic-phase1)
+	(difference (pool-elts pool) (?? 'source @1/1) (?? 'status 'deleted))
       `#[loop #[termlogic ,termlogic.index]
-	 batchsize 25000 batchrange 4
+	 batchsize ,(config 'batchsize 10000)
 	 nthreads ,(config 'nthreads #t)
-	 checkfreq 15
 	 checktests ,(engine/interval (config 'savefreq 60))
-	 checkpoint ,{pools termlogic.index}
+	 checkpoint ,{pool termlogic.index}
 	 logfns {,engine/log ,engine/logrusage}
 	 logchecks #t
 	 logfreq 25])
     (commit)
     (if (not (config 'phase2))
-	(apply chain "PHASE2=yes" names))))
+	(chain "PHASE2=yes" poolname))))
 (module-export! 'main)
 
 (optimize! '{brico engine fifo brico/indexing})
