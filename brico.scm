@@ -118,6 +118,9 @@
   (read-xtype (get-component "data/fragmap.table")))
 (define-init ids-table
   (read-xtype (get-component "data/ids.table")))
+(define-init lexmap (make-hashtable)
+  ;;(read-xtype (get-component "data/lexmap.table"))
+  )
 
 (define index-map indicator-map)
 
@@ -145,7 +148,9 @@
  (do-choices (l (?? 'type 'indexes))
    (store! indicator-map (get l 'key) l))
  (do-choices (l (?? 'type 'fragments))
-   (store! frag-map (get l 'key) l)))
+   (store! frag-map (get l 'key) l))
+ (do-choices (l (?? 'type 'language))
+   (add! lexmap (cons key (get l 'type)) l)))
 
 ;;; Building the idtable
 
