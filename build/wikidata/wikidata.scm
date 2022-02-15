@@ -456,7 +456,7 @@
   (let* ((wordmatches (wikid/find 'words (get bf 'words)))
 	 (toprefs (wikid/toprefs wordmatches count)))
     (append
-     (choice->vector (get bf @?engloss))
+     (choice->vector (get bf en_gloss))
      (forseq (f toprefs)
        (vector `(wikidmap! ,bf ,f)
 	       (qc (pick-one (get (get f 'descriptions) 'en)))
