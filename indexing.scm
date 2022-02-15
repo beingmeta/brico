@@ -420,10 +420,6 @@
    @1/2c286{INGREDIENTS*}
    })
 
-(define relations
-  (difference (reject (pick (?? 'type 'relation) brico.pool) 'type 'termlogic)
-	      lattice-slotids))
-
 ;; These are slotids whose indexed values should include implications
 (define generalize-slotids
   '{@1/2c274{PART-OF}
