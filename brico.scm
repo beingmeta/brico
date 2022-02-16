@@ -5,17 +5,16 @@
 (in-module 'brico)
 ;;; Using the BRICO database from Kno
 
-(define %nosubst '{bricosource brico.source
-		   brico.pool brico.index brico.indexes
-		   freqfns use-wordforms})
-
 (use-module '{texttools reflection logger varconfig knodb knodb/config binio})
 ;; For custom methods
 (use-module 'kno/rulesets)
 
 (define-init %loglevel %notify%)
-(set! %loglevel %info%)
 ;;(set! %loglevel %debug%)
+
+(define %nosubst '{bricosource brico.source
+		   brico.pool brico.index brico.indexes
+		   freqfns use-wordforms})
 
 (define %optmods '{knodb logger})
 
@@ -30,8 +29,7 @@
 (define-init brico.indexes {})
 (define-init brico.setup #f)
 
-(define brico.opts #[background #t readonly #t basename "brico.pool"])
-(propconfig! brico:background brico.opts 'background)
+(define-init brico.opts #[background #t readonly #t basename "brico.pool"])
 
 (define-init brico:readonly #t)
 
@@ -770,11 +768,14 @@
 ;;;; Setup the brico pool and indexes, together with module bindings
 
 (define (setup-brico pool (opts #f))
-  (and pool (pool? pool) (equal? (pool-base pool) @1/0)
+  (and (pool? pool) (equal? (pool-base pool) @1/0)
        (not (config 'brico:disabled))
        (not (eq? brico.setup pool))
        (let ((indexes (pool/getindexes pool opts)))
-	 (lognotice |BricoConfig| pool " with " (|| indexes) " indexes")
+	 (lognotice |BRICO|
+	   "Configured from " (pool-source pool) " with " (|| indexes) " indexes"
+	   (if (getopt opts 'background) " (in background)")
+	   (printout "\n    " pool))
 	 (set! brico.pool pool)
 	 (when (getopt opts 'background)
 	   (do-choices (index indexes)
@@ -798,15 +799,32 @@
 	 (set! brico.setup pool)
 	 pool)))
 
+;; (config-def! 'brico:disabled
+;;   (lambda (var (val))
+;;     (cond ((unbound? val) (getopt brico.opts 'disabled))
+;; 	  ((and (not val) (getopt brico.opts 'disabled))
+;; 	   ;; This is the case where we are enabling the database
+;; 	   (store! brico.opts 'disabled val)
+;; 	   (when (config 'brico:source)
+;; 	     (config! 'brico:source (config 'brico:source))))
+;; 	  (else (store! brico.opts 'disabled val)))))
 (config-def! 'brico:disabled
-  (lambda (var (val))
-    (cond ((unbound? val) (getopt brico.opts 'disabled))
-	  ((not brico.pool)
-	   (store! brico.opts 'disabled val))
-	  ((and (not val) (getopt brico.opts 'disabled))
-	   (store! brico.opts 'disabled val)
-	   (config! 'brico:source (config 'brico:source)))
-	  (else (store! brico.opts 'disabled val)))))
+  (slambda (var (val))
+    (if (unbound? val) (getopt brico.opts 'disabled)
+	(let ((enabling (not val))
+	      (disabled (getopt brico.opts 'disabled)))
+	  (store! brico.opts 'disabled val)
+	  (cond (brico.setup
+		 (unless enabling
+		   (logwarn |BRICO|
+		     "The database is already setup from " brico.setup
+		     "\n Disabling it has no effect (sorry).")))
+		((and enabling disabled)
+		 ;; This is the case where we are enabling the database and
+		 ;;  will set it up if required
+		 (if (config 'brico:source)
+		     (config! 'brico:source (config 'brico:source))
+		     (lognotice |BRICO| "Enabling future database configuration"))))))))
 
 (define-init bricosource-configfn (knodb/configfn setup-brico brico.opts))
 (config-def! 'bricosource bricosource-configfn)
@@ -824,6 +842,16 @@
 	     "Can't set readonly to " val " for brico.pool=" wikid.pool " brico.index=" wikid.index)
 	   (set! brico:readonly val))
 	  (else (set! brico:readonly val)))))
+
+(config-def! 'brico:background
+  (slambda (var (val))
+    (cond ((unbound? val) (getopt brico.opts 'background)) 
+	  ((not brico.setup) (store! brico.opts 'background val) val)
+	  ((getopt brico.opts 'background)
+	   (unless val
+	     (logwarn |BRICO| "Cannot remove BRICO from the background"))
+	   (getopt brico.opts 'background))
+	  (else (use-index brico.index) #t))))
 
 ;;;; BRICO load hooks (not yet implemented)
 

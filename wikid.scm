@@ -16,17 +16,45 @@
 
 (define-init wikid.source #f)
 (define-init wikid.pool #f)
+(define-init wikid.setup #f)
 (define-init wikid.index #f)
 (define-init wikid.indexes #f)
-(define-init wikid.opts #[background #t readonly #t basename "wikid.pool"])
+(define-init wikid.opts #[background #f readonly #t basename "wikid.pool"])
+
+(define-init wikid.opts #[readonly #t basename "wikid.pool"])
+
 (define-init wikid:readonly #t)
 
-;;; Read/write config
+;;; WIKID setup/config
+
+(define (setup-wikid pool (opts wikid.opts))
+  (and (pool? pool) (eq? (pool-base pool) @1/8000000)
+       (not (config 'brico:disabled))
+       (not (eq? wikid.setup pool))
+       (let ((indexes (pool/getindexes pool opts)))
+	 (lognotice |WIKID|
+	   "Configured from " (pool-source pool) " with " (|| indexes) " indexes"
+	   (if (getopt opts 'background) " (in background)")
+	   (printout "\n    " pool))
+	 (when (getopt opts 'background)
+	   (do-choices (index indexes)
+	     (unless (try (indexctl index 'metadata 'appendix) #f)
+	       (use-index index))))
+	 (set! wikid.pool pool)
+	 (set! wikid.index (pool/getindex pool))
+	 (set! wikid.indexes indexes)
+	 (set! wikid.source (pool-source pool))
+	 (set-wikid:readonly! wikid:readonly)
+	 (set! wikid.setup pool)
+	 pool)))
 
 (define (set-wikid:readonly! flag)
   (knodb/readonly! wikid.pool flag)
   (knodb/readonly! wikid.index flag)
   (set! wikid:readonly flag))
+
+;;; Configs
+
 (config-def! 'wikid:readonly
   (lambda (var (val))
     (cond ((unbound? val) wikid:readonly)
@@ -38,20 +66,33 @@
 	     "Can't set readonly to " val " for wikid.pool=" wikid.pool " wikid.index=" wikid.index))
 	  (else (set! wikid:readonly val)))))
 
-;;; WIKID setup
+(config-def! 'wikid:disabled
+  (slambda (var (val))
+    (if (unbound? val) (getopt wikid.opts 'disabled)
+	(let ((enabling (not val))
+	      (disabled (getopt wikid.opts 'disabled)))
+	  (store! wikid.opts 'disabled val)
+	  (cond (wikid.setup
+		 (unless enabling
+		   (logwarn |WIKID|
+		     "The database is already setup from " wikid.setup
+		     "\n Disabling it has no effect (sorry).")))
+		((and enabling disabled)
+		 ;; This is the case where we are enabling the database and
+		 ;;  will set it up if required
+		 (if (config 'wikid:source)
+		     (config! 'wikid:source (config 'wikid:source))
+		     (lognotice |WIKID| "Enabling future database configuration"))))))))
 
-(define (setup-wikid pool (opts wikid.opts))
-  (and (pool? pool) (eq? (pool-base pool) @1/8000000)
-       (let ((indexes (pool/getindexes pool)))
-	 (lognotice |WikidConfig| pool)
-	 (set! wikid.pool pool)
-	 (set! wikid.index (pool/getindex pool))
-	 (set! wikid.indexes indexes)
-	 (set! wikid.source (pool-source pool))
-	 (set-wikid:readonly! wikid:readonly)
-	 pool)))
-
-(propconfig! 'wikid:background wikid.opts 'background)
+(config-def! 'wikid:background
+  (slambda (var (val))
+    (cond ((unbound? val) (getopt wikid.opts 'background))
+	  ((not wikid.setup) (store! wikid.opts 'background val) val)
+	  ((getopt wikid.opts 'background)
+	   (unless val
+	     (logwarn |WIKID| "Cannot remove WIKID from the background"))
+	   (getopt wikid.opts 'background))
+	  (else (use-index wikid.index) #t))))
 
 (define-init wikidsource-configfn
   (knodb/configfn setup-wikid wikid.opts))
