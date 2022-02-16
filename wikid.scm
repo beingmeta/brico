@@ -36,12 +36,9 @@
 	   "Configured from " (pool-source pool) " with " (|| indexes) " indexes"
 	   (if (getopt opts 'background) " (in background)")
 	   (printout "\n    " pool))
-	 (when (getopt opts 'background)
-	   (do-choices (index indexes)
-	     (unless (try (indexctl index 'metadata 'appendix) #f)
-	       (use-index index))))
 	 (set! wikid.pool pool)
 	 (set! wikid.index (pool/getindex pool))
+	 (when (getopt opts 'background) (use-index wikid.index))
 	 (set! wikid.indexes indexes)
 	 (set! wikid.source (pool-source pool))
 	 (set-wikid:readonly! wikid:readonly)
@@ -90,9 +87,11 @@
 	  ((not wikid.setup) (store! wikid.opts 'background val) val)
 	  ((getopt wikid.opts 'background)
 	   (unless val
-	     (logwarn |WIKID| "Cannot remove WIKID from the background"))
+	     (logwarn |WIKID| "Clearing config, but cannot remove WIKID from the background"))
 	   (getopt wikid.opts 'background))
-	  (else (use-index wikid.index) #t))))
+	  (else (use-index wikid.index)
+		(store! wikid.opts 'background val)
+		#t))))
 
 (define-init wikidsource-configfn
   (knodb/configfn setup-wikid wikid.opts))
