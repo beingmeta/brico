@@ -72,7 +72,6 @@
 	      (table-increment! batch-state 'words (|| words))
 	      (table-increment! batch-state 'names (|| (pick words capitalized?)))
 	      (table-increment! batch-state 'phrases (|| phrases))))
-	  #|
 	  (do-choices (langid (getkeys %norms))
 	    (let* ((norms (get %norms langid))
 		   (slotid (get norm-map langid)))
@@ -124,9 +123,7 @@
 			     [language english]
 			     glosses)
 	      (index-frame core.index f 'has en_glosses)
-	      (table-increment! batch-state 'glosses (|| glosses))))
-	  |#
-	      )))
+	      (table-increment! batch-state 'glosses (|| glosses)))))))
     (swapout f)
     (swapout words.adjunct f)
     (swapout norms.adjunct f)
