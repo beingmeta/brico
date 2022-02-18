@@ -4,8 +4,11 @@
 (in-module 'brico/build/index/termlogic)
 
 (use-module '{texttools varconfig logger optimize text/stringfmts engine})
-(use-module '{knodb knodb/search knodb/fuzz})
+;;; This module needs to go early because it (temporarily) disables the brico database
 (use-module 'brico/build/index)
+
+;;; Other stuff
+(use-module '{knodb knodb/search knodb/fuzz})
 (use-module '{brico brico/indexing})
 
 (define (prefetcher oids done)
@@ -99,10 +102,9 @@
   (config! 'appid
 	   (glom "index-" (basename poolname ".pool") "-termlogic"
 	     (if (config 'phase2) ".2" ".1")))
-  (let* ((pool (getdbpool poolname))
-	 (poolsize (get-pool-size pool))
-	 (termlogic.index (target-index "termlogic.index" #f pool 8.0)))
-    (commit pool) ;; Save metadata
+  (let* ((pool (getdbpool poolname '{core lattice}))
+	 (termlogic.index (pool/index/target pool 'name 'termlogic)))
+    (knodb/writable! termlogic.index)
     (engine/run (if (config 'phase2 #f) termlogic-phase2 termlogic-phase1)
 	(difference (pool-elts pool) (?? 'source @1/1) (?? 'status 'deleted))
       `#[loop #[termlogic ,termlogic.index]

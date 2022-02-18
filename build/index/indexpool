@@ -1,40 +1,64 @@
 #!/bin/sh
-POOL=${1:-./brico/brico.pool}
-if [ -d ${POOL} ] && [ -f "${POOL}/${POOL}.pool" ]; then
-    POOL="${POOL}/${POOL}.pool";
-    echo "Indexing pool ${POOL}";
-    ls -l ${POOL};
-fi;
-INPUTS=$(dirname ${POOL})
-OUTPUT_DIR="fresh/$(basename ${POOL} .pool)"
-if [ $# -gt 1 ]; then
-    if [ "$2" = all ] || [ -f index/$2.scm ]; then
-	PHASE=$2;
-	OUTPUTS=${3:-${OUTPUT_DIR}};
-    else
-	PHASE=$3;
-	OUTPUTS=${2:-${OUTPUT_DIR}};
+POOL_ARG=${1:-brico}
+shift;
+DBDIR=$(dirname ${POOL_ARG})
+CONFIGS=BRICOSOURCE=./brico/
+if [ -z "${DBDIR}" ]; then DBDIR="."; fi
+if [ -d "${POOL_ARG#+}" ]; then
+    POOL_ARG="${POOL_ARG#+}"
+    DBNAME=$(basename ${POOL_ARG} /)
+    DBDIR="fresh/${DBNAME}";
+    if [ ! -f "${DBDIR}/${DBNAME}.pool" ]; then
+	echo "Copying pools to working directory ${DBDIR}";
+        cp -v ${POOL_ARG}/*.pool ${DBDIR};
     fi;
+    POOL="${DBDIR}/${DBNAME}.pool"
+elif [ -d ${POOL_ARG} ]; then
+    DBNAME=$(basename ${POOL_ARG} /)
+    if [ -f ${POOL_ARG}/${DBNAME}.pool ]; then
+	POOL=${POOL_ARG}/${DBNAME}.pool;
+	DBDIR=${POOL_ARG};
+    else
+	echo "indexpool: Can't find pool to index in ${POOL_ARG}";
+	usage;
+	exit;
+    fi;
+elif [ -f ${POOL_ARG} ]; then
+    POOL=${POOL_ARG};
+    DBDIR=$(dirname ${POOL_ARG};
 else
-    OUTPUTS=${2:-${OUTPUT_DIR}}
+    echo "indexpool: bad pool arg ${POOL_ARG}";
+    usage;
+    exit;
 fi;
-if [ ! -d ${OUTPUTS} ]; then
-    mkdir ${OUTPUTS};
-fi;
-if [ ! -z "${BRICOSOURCE}" ]; then
-    export KNO_BRICOSOURCE=${BRICOSOURCE};
-elif test -f ./brico/brico.pool; then
-    export BRICOSOURCE=./brico/;
-    export KNO_BRICOSOURCE=./brico/;
+
+if [ -n "$1" ]; then
+    COMMAND=$1
+    shift;
 fi
-if [ -z "${PHASE}" ]; then
-    rm -f ${OUTPUTS}/*.index &&
-    index/core.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
-	index/lattice.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
-	index/termlogic.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
-	index/general.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
-	index/english.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL} &&
-	index/terms.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL}
+
+usage() {
+    echo "Usage: indexpool *pool|dbdir* [*phase|command*]";
+}
+
+echo "indexpool: ${POOL} in ${DBDIR}"
+
+if [ -z "${COMMAND}" ]; then
+    echo "Rebuilding everything";
+    rm -f ${DBDIR}/*.index &&
+    index/core.scm ${CONFIGS} ${POOL} &&
+	index/lattice.scm ${CONFIGS} ${POOL} &&
+	index/termlogic.scm ${CONFIGS} ${POOL} &&
+	index/general.scm ${CONFIGS} ${POOL} &&
+	index/language.scm ${CONFIGS} ${POOL};
+elif [ -x index/${COMMAND}.scm ]; then
+    echo "Running ${COMMAND}";
+    index/${COMMAND}.scm ${CONFIGS} ${POOL} $@;
+elif [ -x index/${COMMAND}.sh ]; then
+    echo "Running ${COMMAND}";
+    index/${COMMAND}.sh ${CONFIGS} ${POOL} $@;
+elif [ "${COMMAND}" = "clean" ]; then
+    rm -f ${DBDIR}/*.index;
 else
-    index/${PHASE}.scm INDIR=${INPUTS} OUTDIR=${OUTPUTS} BRICOSOURCE=${BRICOSOURCE} ${POOL};
+    echo "Unknown command ${COMMAND}";
 fi;

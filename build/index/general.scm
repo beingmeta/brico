@@ -14,8 +14,6 @@
   (when done (commit) (clearcaches))
   (unless done (indexer/prefetch (qc oids))))
 
-(define graph.index (target-file "graph.index"))
-(define props.index (target-file "props.index"))
 (define misc-slotids '{PERTAINYM REGION COUNTRY})
 
 (define done #f)
@@ -51,9 +49,9 @@
 		 knodb knodb/search 
 		 knodb/fuzz knodb/fuzz/strings knodb/fuzz/terms
 		 knodb/fuzz/text knodb/fuzz/graph}))
-  (let* ((pool (getdbpool poolname))
-	 (props.index (target-index props.index #f pool 20.0))
-	 (graph.index (target-index graph.index #f pool 10.0)))
+  (let* ((pool (getdbpool poolname '{core lattice termlogic}))
+	 (props.index (pool/index/target pool 'name 'properties))
+	 (graph.index (pool/index/target pool 'name 'relations)))
     (commit pool) ;; Save metadata
     (engine/run general-indexer 
 	(difference (pool-elts pool) (?? 'source @1/1) (?? 'status 'deleted))

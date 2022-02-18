@@ -4,15 +4,15 @@
 (in-module 'brico/build/index/lattice)
 
 (use-module '{texttools varconfig logger optimize text/stringfmts engine})
-(use-module '{knodb knodb/search knodb/fuzz knodb/branches})
+;; This module needs to go early because it (temporarily) disables the brico database
 (use-module 'brico/build/index)
+
+(use-module '{knodb knodb/search knodb/fuzz knodb/branches})
 (use-module '{brico brico/indexing})
 
 (define (prefetcher oids done)
   (when done (commit) (clearcaches))
   (unless done (index-lattice/prefetch (qc oids))))
-
-(define (index-lattices f thread-index))
 
 (defambda (index-batch frames batch-state loop-state task-state)
   (let* ((index (try (get batch-state 'index) (get loop-state 'index))))
@@ -32,10 +32,8 @@
 		 knodb/fuzz knodb/fuzz/strings knodb/fuzz/terms
 		 knodb/fuzz/text}))
   (let* ((pool (getdbpool poolname))
-	 (poolsize (pool-load pool))
-	 (frames (pool-elts pool))
-	 (target (target-index "lattice.index" #f pool 4.0)))
-    (commit pool) ;; Save metadata
+	 (target (pool/index/target pool 'name 'lattice))
+	 (frames (pool-elts pool)))
     (engine/run index-batch (difference frames (?? 'source @1/1) (?? 'status 'deleted))
       `#[loop #[index ,target]
 	 batchsize ,(config 'batchsize 10000)

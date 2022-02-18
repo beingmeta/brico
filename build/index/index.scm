@@ -12,6 +12,9 @@
 (config! 'cachelevel 2)
 (config! 'thread:logexit #f)
 
+;; We disable BRICO setup until we have used our pool (which might be BRICO)
+(config! 'brico:disabled #t)
+
 (define indir (config 'indir (abspath "brico/")))
 (define outdir (config 'outdir (abspath "fresh/")))
 (define bugjar (abspath "bugjar/"))
@@ -30,8 +33,15 @@
       "The specified output path " (write outdir) " isn't a directory")))
 (when (config 'checkdirs #t config:boolean) (check-dirs))
 
-(define (getdbpool arg)
-  (let((pool (knodb/ref arg)))
+(define (getdbpool arg (indexes 'core))
+  (let ((pool (use-pool arg)))
+    (when (eq? (pool-base pool) @1/0) 
+      (config! 'bricosource pool))
+    (config! 'brico:disabled #f)
+    (when indexes
+      (set+! indexes 'core)
+      (do-choices (name indexes)
+	(use-index (pool/index/open pool 'name name))))
     (do-choices (pool pool)
       (dbctl pool 'metadata 'readonly #f)
       (dbctl pool 'readonly #f))
@@ -39,8 +49,8 @@
 
 ;;(define misc-slotids (file->dtype (mkpath data-dir "miscslots.dtype")))
 
-(config! 'bricosource indir)
-(pool/ref (mkpath indir "brico.pool"))
+;;(config! 'bricosource indir)
+;;(use-pool (mkpath indir "brico.pool"))
 
 (use-module '{brico brico/indexing})
 (use-module '{brico brico/indexing kno/mttools trackrefs optimize knodb/tinygis})
@@ -125,32 +135,32 @@
 	  (max (* 3 poolsize) indexsize)
 	  indexsize)))
 
-(define (target-index filename (opts #f) (pool #f) (indexsize) (keyslot))
-  (default! indexsize (getopt opts 'indexsize 10.0))
-  (default! keyslot (getopt opts 'keyslot (config 'keyslot #f)))
-  (local poolsize (if pool (pool-load pool) #1mib))
-  (unless (search "/" filename)
-    (set! filename (mkpath outdir filename)))
-  (unless (file-directory? (dirname filename)) 
-    (mkdirs (dirname filename)))
-  (let ((index (access-index filename opts (get-index-size poolsize indexsize) keyslot)))
-    (when pool
-      (let* ((indexes (or (poolctl pool 'metadata 'indexes) {}))
-	     (root-dir (getopt opts 'indexroot))
-	     (index-path (if root-dir
-			     (strip-prefix (index-source index) root-dir)
-			     (basename (index-source index)))))
-	(if (has-prefix index-path "/")
-	    (logerr |NoRelative|
-	      "Can't find relative reference to " (index-source index)
-	      " for the pool " pool)
-	    (if (overlaps? index-path indexes)
-		(loginfo |ExistingIndex|
-		  "Index path " (write index-path) " is already configured for "
-		  pool)
-		(begin (poolctl pool 'metadata 'indexes {index-path indexes})
-		  (logwarn |AddIndexPath| (write index-path) " to " pool))))))
-    index))
+;; (define (target-index filename (opts #f) (pool #f) (indexsize) (keyslot))
+;;   (default! indexsize (getopt opts 'indexsize 10.0))
+;;   (default! keyslot (getopt opts 'keyslot (config 'keyslot #f)))
+;;   (local poolsize (if pool (pool-load pool) #1mib))
+;;   (unless (search "/" filename)
+;;     (set! filename (mkpath outdir filename)))
+;;   (unless (file-directory? (dirname filename)) 
+;;     (mkdirs (dirname filename)))
+;;   (let ((index (access-index filename opts (get-index-size poolsize indexsize) keyslot)))
+;;     (when pool
+;;       (let* ((indexes (or (poolctl pool 'metadata 'indexes) {}))
+;; 	     (root-dir (getopt opts 'indexroot))
+;; 	     (index-path (if root-dir
+;; 			     (strip-prefix (index-source index) root-dir)
+;; 			     (basename (index-source index)))))
+;; 	(if (has-prefix index-path "/")
+;; 	    (logerr |NoRelative|
+;; 	      "Can't find relative reference to " (index-source index)
+;; 	      " for the pool " pool)
+;; 	    (if (overlaps? index-path indexes)
+;; 		(loginfo |ExistingIndex|
+;; 		  "Index path " (write index-path) " is already configured for "
+;; 		  pool)
+;; 		(begin (poolctl pool 'metadata 'indexes {index-path indexes})
+;; 		  (logwarn |AddIndexPath| (write index-path) " to " pool))))))
+;;     index))
 
 (define (lex-index type language (opts #f) (pool #f) (indexsize) (keyslot) (filename) (langid))
   (default! indexsize (getopt opts 'size 10.0))

@@ -2,16 +2,15 @@
 ;;; -*- Mode: Scheme; -*-
 
 (in-module 'brico/build/index/core)
-
 (use-module '{texttools varconfig logger optimize text/stringfmts knodb engine})
+;; This module needs to go early because it (temporarily) disables the brico database
 (use-module 'brico/build/index)
+
 (use-module '{brico brico/indexing})
-
-(poolctl brico.pool 'readonly #f)
-
 (use-module 'knodb/tinygis)
 
 (define %volatile '{fixup})
+(define %loglevel %notice%)
 
 (define (prefetcher oids done)
   (when done (commit) (clearcaches))
@@ -93,21 +92,17 @@
 
 (define (main poolname)
   (config! 'appid  "index-core")
-  (let* ((pool (getdbpool poolname))
-	 (core.index (target-index core-index [size #8mib] pool))
-	 (latlong.index (target-index latlong-index #[keyslot {lat long}] pool))
-	 (wikidrefs.index (target-index wikidrefs-index 
-					#[keyslot wikidref size 2]
-					pool))
+  (let* ((pool (getdbpool poolname #f))
+	 (core.index (pool/index/target pool 'name 'core))
+	 (latlong.index (pool/index/target pool 'name 'latlong))
+	 (wikidrefs.index (pool/index/target pool 'keyslot 'wikidref))
 	 (index (make-aggregate-index {core.index latlong.index wikidrefs.index}
 				      [register #t]))
 	 (wordnet.index (tryif (overlaps? (pool-base pool) @1/0)
-			  (target-index wordnet-index [keyslot wordnet-slotids]
-					pool (* 1.2 (|| wordnet-slotids)))))
+			  (pool/index/target pool 'name 'wordnet)))
 	 (wikidprops.index (tryif (overlaps? (pool-base pool) @1/0)
-			     (target-index wikidprops-index [size 4] pool))))
-    (info%watch "MAIN" core.index wikidprops.index latlong.index wordnet.index)
-    (commit pool) ;; Save updated INDEXES metadata on pool
+			     (pool/index/target pool 'name 'wikidprops))))
+    (info%watch "MAIN" pool core.index wikidprops.index latlong.index wordnet.index)
     (engine/run core-indexer (pool-elts pool)
       `#[loop #[core.index ,core.index
 		wordnet.index ,wordnet.index
