@@ -64,8 +64,10 @@
     #[name lattice path "lattice.index" sizing 10.0]
     #[name termlogic path "termlogic.index" sizing 10.0]
 
-    #[name en_words path "en_words.index" sizing 5.0 keyslot ,en]
-    #[name en_norms path "en_norms.index" sizing 2.0 keyslot ,en_norms]
+    #[name names path "names.index" sizing 8.0]
+
+    #[name en_words path "en_words.index" sizing 6.0 keyslot ,en]
+    #[name en_norms path "en_norms.index" sizing 6.0 keyslot ,en_norms]
     #[name en_glosses path "en_glosses.index" sizing 8.0
       keyslot ,en_glosses]
     #[name en_frags path "en_frags.index" sizing 10.0
@@ -74,13 +76,12 @@
     #[name en_etc path "en_etc.index" sizing 3.0
       keyslot ,{en_aliases en_indicators}
       appendix #t]
-    #[name names path "names.index" sizing 8.0]
 
-    ,(lex-specs 'words '{EN NL ES IT DE SK PL DK} 15_000_000 5.0)
-    ,(lex-specs 'norms '{EN NL ES IT DE SK PL DK} 15_000_000 5.0)
-    ,(lex-specs 'glosses '{EN NL ES IT DE SK PL DK} 1_000_000 2.0)
-    ,(lex-specs 'fragments '{EN NL ES IT DE SK PL DK} 10_000_000 12.0 #t)
-    ,(lex-specs '{aliases indicators} '{EN NL ES IT DE SK PL DK} 1_000_000 12.0 #t)
+    ,(lex-specs 'words '{NL ES IT DE SK PL ZH KO RU JA} 15_000_000 6.0)
+    ,(lex-specs 'norms '{NL ES IT DE SK PL ZH KO RU JA} 15_000_000 6.0)
+    ,(lex-specs 'glosses '{NL ES IT DE SK PL ZH KO RU JA} 1_000_000 2.0)
+    ,(lex-specs 'fragments '{NL ES IT DE SK PL DK} 10_000_000 12.0 #t)
+    ,(lex-specs '{aliases indicators} '{NL ES IT DE SK PL DK} 1_000_000 12.0 #t)
     
     #[name relations path "relations.index" sizing 10.0]
     #[name properties path "properties.index" sizing 10.0]
