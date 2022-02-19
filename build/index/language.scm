@@ -64,7 +64,7 @@
 		   (phrases (pick words compound-string?)))
 	      (knodb/index+! words.index f slotid 'terms [language langid] words)
 	      (index-frame core.index f 'has slotid)
-	      (when #f ;; (exists? phrases)
+	      (when (exists? phrases)
 		(knodb/index+! frags.index f fragslotid  'phrases
 			       [language langid fragsize 2]
 			       phrases)
