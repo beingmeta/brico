@@ -86,10 +86,8 @@
 (defambda (pick-indexes indexes slots)
   (filter-choices (index indexes)
     (and (index? index)
-	 (if (dbctl index 'keyslot)
-	     (overlaps? (dbctl index 'keyslot) slots)
-	     (and (dbctl index 'slots)
-		  (exists? (intersection (elts (dbctl index 'slots)) slots)))))))
+	 (and (dbctl index 'keyslot)
+	      (overlaps? (dbctl index 'keyslot) slots)))))
 
 (define (config-absfreqs var (val))
   (cond ((not (bound? val)) absfreqs)
