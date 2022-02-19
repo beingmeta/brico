@@ -208,19 +208,14 @@
 
   ;; This is used to index newly created properties
   (unless wikidprops.index
-    (let ((new (knodb/ref (mkpath (or (config 'brico:dir) dir) "wikidprops.index")
-			  [indextype 'kindex size #mib create #t
-			   readonly (not (config 'wikidata:build))
-			   background #t
-			   maxload 0.8
-			   register #t])))
+    (let ((new (pool/index/target brico.pool 'name 'wikidprops)))
       (config! 'brico:wikidprops new)))
   
   (let ((props {(find-frames core.index 'type 'wikidprop) 
 		(find-frames wikidprops.index 'type 'wikidprop)})
 	(table propmaps.table))
     (prefetch-oids! props)
-    (do-choices (prop props) 
+    (do-choices (prop props)
       (let ((refstrings (get prop '{wikid wikidref})))
 	(store! table refstrings prop)
 	(store! table (upcase refstrings) prop)
