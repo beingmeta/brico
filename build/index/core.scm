@@ -77,7 +77,11 @@
 	       (index-gloss wordnet.index f 'gloss #default 'en))
 	     (when (and (exists? wikidprops.index) (test f 'type 'wikidprop))
 	       (index-frame wikidprops.index f 'has (getkeys f))
-	       (index-frame wikidprops.index f '{wikid wikidref type wikidtype}))
+	       (index-frame wikidprops.index f '{wikid wikidref type wikidtype})
+	       (index-frame wikidprops.index f 'wikid
+			    {(upcase (get f 'wikid)) (downcase (get f 'wikid))})
+	       (index-frame wikidprops.index f 'wikidref
+			    {(upcase (get f 'wikidref)) (downcase (get f 'wikidref))}))
 	     (index-brico core.index f)
 	     (index-latlong latlong.index f)
 	     (index-frame core.index f index-also)
