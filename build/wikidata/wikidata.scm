@@ -252,6 +252,8 @@
 	   (irritant val |NotADirectoryPath|))
 	  (else (set-wikidata-dir! val))))
 
+(varconfig! wikidata:pool wikidata.pool)
+
 ;; Synonyms
 (config-def! 'wikidata:source config-wikidata-source)
 (config-def! 'wikidatasource config-wikidata-source)
