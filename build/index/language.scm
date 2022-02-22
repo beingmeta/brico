@@ -7,7 +7,7 @@
 ;;; This module needs to go early because it (temporarily) disables the brico database
 (use-module 'brico/build/index)
 
-(use-module '{knodb knodb/search knodb/fuzz knodb/adjuncts})
+(use-module '{knodb knodb/search knodb/fuzz knodb/adjuncts knodb/flexindex})
 (use-module '{brico})
 
 (define just-languages {})
@@ -136,11 +136,14 @@
 (define separate-languages '{EN NL ES IT DE SK PL DK})
 (define separate-languages 'EN)
 
-(define (get-indexes pool lextype)
+(defambda (get-indexes pool lextype)
   (make-aggregate-index
    {(for-choices (lang all-languages)
       (pool/index/target pool 'keyslot (?? 'type lextype 'language lang)))
-    (pool/index/target pool 'name (string->symbol (glom "babel_" lextype)))}))
+    (let* ((lexlabel (if (ambiguous? lextype) "etc" lextype))
+	   (babel-index (pool/index/target pool 'name (string->symbol (glom "babel_" lexlabel)))))
+      (flex/open-index (string-subst (index-source babel-index) ".index" ".flexindex")
+		       `#[type flexindex flexindex kindex size #4mib create #t]))}))
 
 (define (main poolname . languages)
   (config! 'appid (glom "index-" (basename poolname ".pool") "-multilingual"))

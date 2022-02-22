@@ -52,10 +52,8 @@ if [ -z "${COMMAND}" ]; then
 	index/general.scm ${CONFIGS} ${POOL} &&
 	index/language.scm ${CONFIGS} ${POOL};
 elif [ -x index/${COMMAND}.scm ]; then
-    echo "Running ${COMMAND}";
     index/${COMMAND}.scm ${CONFIGS} ${POOL} $@;
 elif [ -x index/${COMMAND}.sh ]; then
-    echo "Running ${COMMAND}";
     index/${COMMAND}.sh ${POOL} $@;
 elif [ "${COMMAND}" = "clean" ]; then
     rm -f ${DBDIR}/*.index;
