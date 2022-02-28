@@ -29,6 +29,9 @@
 (define-init wikid.update {})
 (varconfig! wikid:update wikid.update #f choice)
 
+(define-init wikidmap-loglevel #f)
+(varconfig! wikidmap:loglevel wikidmap-loglevel config:loglevel)
+
 (define (get-index f)
   (cond ((in-pool? f brico.pool) brico.index)
 	((in-pool? f wikid.pool) wikid.index)
@@ -47,10 +50,12 @@
 (defambda (wikidmap! brico wikidata (opts #f) (copy) (index))
   (default! copy (getopt opts 'copy #t))
   (default! index (get-index brico))
+  (local %loglevel (or wikidmap-loglevel %loglevel))
   (let* ((curmap (get brico 'wikidref))
 	 (wikidref (if (string? wikidata) wikidata (get wikidata 'wikid)))
 	 (wikidata (if (string? wikidata) (wikid/ref wikidata) wikidata))
 	 (disowned (?? 'wikidref wikidref)))
+    (info%watch "wikidmap!" brico wikidata index curmap wikidref wikidata disowned)
     (when (and index (exists? curmap))
       (unindex! index brico 'wikidref curmap))
     (when (and index (exists? disowned)) 
