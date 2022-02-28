@@ -138,18 +138,22 @@
 
 (defambda (get-indexes pool lextype)
   (make-aggregate-index
-   {(for-choices (lang all-languages)
-      (pool/index/target pool 'keyslot (?? 'type lextype 'language lang)))
-    (let* ((lexlabel (if (ambiguous? lextype) "etc" lextype))
-	   (babel-index (pool/index/target pool 'name (string->symbol (glom "babel_" lexlabel)))))
-      (flex/open-index (string-subst (index-source babel-index) ".index" ".flexindex")
-		       `#[type flexindex flexindex kindex size #4mib create #t]))}))
+   (for-choices (lang all-languages)
+     (try (pool/index/target pool 'keyslot (?? 'type lextype 'language lang))
+	  (pool/index/target pool 'name (string->symbol (glom (get lang '%langid) "_etc")))
+	  (let ((spec (try (pool/index/spec pool 'name (string->symbol (glom "babel_" lextype)))
+			   (pool/index/spec pool 'name 'babel_etc)
+			   #[name babel_etc path "babel_etc.index" size #4mib])))
+	    (flex/open-index (mkpath (dirname (pool-source pool))
+				     (string-subst (get spec 'path) ".index" ".flexindex"))
+			     (cons `#[type flexindex flexindex kindex size #4mib create #t]
+				   spec))))))) 
 
 (define (main poolname . languages)
   (config! 'appid (glom "index-" (basename poolname ".pool") "-multilingual"))
   (when (config 'optimize #t)
     (optimize! '{engine brico brico/indexing brico/lookup
-		 knodb knodb/search 
+		 knodb knodb/search
 		 knodb/fuzz knodb/fuzz/strings knodb/fuzz/terms
 		 knodb/fuzz/text knodb/fuzz/graph}))
   (let* ((pool (getdbpool poolname))
@@ -158,8 +162,8 @@
 	 (words.index (get-indexes pool 'words))
 	 (norms.index (get-indexes pool 'norms))
 	 (frags.index (get-indexes pool 'fragments))
-	 (indicators.index (get-indexes pool 'indicators))
 	 (glosses.index (get-indexes pool 'glosses))
+	 (indicators.index (get-indexes pool 'indicators))
 	 (aliases.index (get-indexes pool 'aliases))
 	 (adjuncts (begin (adjuncts/init! pool) (poolctl pool 'adjuncts)))
 	 (oids (difference (pool-elts pool) (?? 'source @1/1) (?? 'status 'deleted)))
