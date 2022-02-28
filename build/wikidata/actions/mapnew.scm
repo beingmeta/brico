@@ -10,6 +10,8 @@
 (use-module '{brico brico/wikid brico/build/wikidata
 	      brico/build/wikidata/map brico/build/wikidata/automap})
 
+(define (getdone aspect) (mkpath wikidata.dir (glom aspect ".xtype")))
+
 (module-export! '{main})
 (module-export! 
  '{import-actors
@@ -164,12 +166,12 @@
 (define (import-occupations)
   (let* ((occupations (pick (wikidata/find @?wikid_isa meta-roles)
 			wikidata->brico))
-	 (done (try (file-exists? "occupations.xtype")
-		    (read-xtype (open-byte-input "occupations.xtype")))))
+	 (done (try (file-exists? (getdone "occupations"))
+		    (read-xtype (open-byte-input (getdone "occupations"))))))
     (do-choices (occupation (difference occupations done))
       (logwarn |Occupation| "Importing " occupation " " (get occupation '%id))
       (import-occupation occupation)
-      (write-xtype occupation (extend-byte-output "occupations.xtype"))
+      (write-xtype occupation (getdone "occupations"))
       (logwarn |Occupation| "Finished importing " occupation))))
 
 (define wikidata-war 
@@ -200,6 +202,7 @@
   (import-by-genls war-types wikidata-war brico-war)
   (import-by-genls battle-types wikidata-battle brico-battle)
   (do-choices (type {war-types battle-types})
+    (logwarn |Importing| type)
     (import-isa-type type (wikid/brico type) [lower #f]))
   (do-choices (wf (getkeys wikidata-treaty-maps))
     (wikidmap! (get wikidata-treaty-maps wf) wf))
@@ -235,11 +238,6 @@
     (when (and importer (symbol-bound? importer))
       ((eval importer))))
   (unless importer
-    (import-actors)
-    (import-lawyers)
-    (import-musicians)
-    (import-diplomats)
-    (import-politicians)
     (import-occupations)
     (import-war-and-peace))
   (knodb/commit))
