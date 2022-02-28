@@ -778,6 +778,7 @@
 	 (set! brico.index (pool/getindex pool opts))
 	 (when (getopt opts 'background) (use-index brico.index))
 	 (set! wikidrefs.index (pool/index/find pool 'keyslot 'wikidref))
+	 (set! wikidprops.index (pool/index/find pool 'name 'wikidprops))
 	 (set! core.index (pool/index/find pool 'name 'core))
 	 (set! props.index (pool/index/find pool 'keyslot 'props))
 	 (set! graph.index (pool/index/find pool 'keyslot 'relations))
@@ -823,7 +824,11 @@
 
 (define-init bricosource-configfn (knodb/configfn setup-brico brico.opts))
 (config-def! 'brico:source bricosource-configfn)
-(config-def! 'bricosource bricosource-configfn)
+(config-def! 'bricosource
+  (lambda (var (val))
+    (cond ((unbound? val) (config 'brico:source))
+	  ((not brico.pool) (config! 'brico:source val))
+	  (else #f))))
 
 (config-def! 'brico:readonly
   (lambda (var (val))
