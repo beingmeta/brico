@@ -2,7 +2,7 @@
 POOL_ARG=${1:-brico}
 shift;
 DBDIR=$(dirname ${POOL_ARG})
-CONFIGS=BRICOSOURCE=./brico/
+CONFIGS=BRICOSOURCE=./brico/ DBLOGLEVEL=warn
 if [ -z "${DBDIR}" ]; then DBDIR="."; fi
 if [ -d "${POOL_ARG#+}" ]; then
     POOL_ARG="${POOL_ARG#+}"
