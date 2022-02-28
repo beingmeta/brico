@@ -26,6 +26,15 @@
 
 (define-init all-threads {})
 
+(define wikidread-batchsize 1000)
+(varconfig! wikidread:batchsize wikidread-batchsize)
+(define wikidread-queuesize 10000)
+(varconfig! wikidread:queuesize wikidread-queuesize)
+(define wikidread-fillsize 5000)
+(varconfig! wikidread:fillsize wikidread-fillsize)
+(define wikidread-fillstep-perthread 100)
+(varconfig! wikidread:fillstep wikidread-fillstep-perthread)
+
 (define (read-wikidata-db-init)
   (dbctl brico.pool 'readonly #f))
 (config! 'brico:onload read-wikidata-db-init)
@@ -128,7 +137,7 @@
 
 (define lattice-props {wikid-instanceof wikid-subclassof})
 
-(define (import-wikid-item item index base.index wikids.index)
+(define (import-wikid-item item pos index base.index wikids.index)
   (let* ((id (get item 'id))
 	 (ref (get-wikidref id))
 	 (type (get item 'type))
@@ -140,6 +149,7 @@
       (let ((moment (timestamp)))
 	(store! ref 'modified moment)
 	(unless (test ref 'created) (store! ref 'created moment)))
+      (when pos (store! ref 'filepos pos))
       (store! ref 'lastrevid (get item 'lastrevid))
       (store! ref 'labels (convert-lexslot (get item 'labels)))
       (store! ref 'aliases (convert-lexslot (get item 'aliases)))
@@ -189,12 +199,14 @@
   (local wikidprops (get loop-state 'wikidprops.index))
   (local base.index (get loop-state 'base.index))
   (local wikids.index (get loop-state 'wikids.index))
-  (doseq (line batch)
-    (let* ((json (onerror (jsonparse line 'symbolize) #f))
+  (doseq (entry batch)
+    (let* ((line (if (pair? entry) (cdr entry) entry))
+	   (json (onerror (jsonparse line 'symbolize) #f))
 	   (id (and json (get json 'id))))
       (if json
 	  (import-wikid-item
 	   json
+	   (and (pair? entry) (car entry))
 	   (qc index (tryif (has-prefix id {"P" "p"}) wikidprops))
 	   (qc base.index (tryif (has-prefix id {"P" "p"}) wikidprops))
 	   (qc wikids.index (tryif (has-prefix id {"P" "p"}) wikidprops)))
@@ -232,6 +244,7 @@
 		base.index ,base.index
 		wikids.index ,wikids.index]
 	 infile ,(config 'infile "latest-all.json")
+	 posfn  #t
 	 openfn ,open-wikidata-file
 	 branchindexes index
 	 maxitems ,maxitems
@@ -241,7 +254,10 @@
 	 batchsize ,(config 'batchsize 1000)
 	 queuesize ,(config 'queuesize 10000)
 	 fillsize ,(config 'fillsize 5000)
-	 fillstep ,(config 'fillstep (if threadcount (* threadcount 15) 100))
+	 fillstep ,(config 'fillstep 
+			   (if threadcount
+			       (* threadcount wikidread-fillstep-perthread)
+			       wikidread-fillstep-perthread))
 
 	 checkfreq ,(config 'checkfreq 60)
 	 checktests ,(engine/delta 'items (config 'checkcount 100000))
