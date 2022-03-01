@@ -12,7 +12,7 @@
 (define %optmods '{brico logger knodb knodb/branches knodb/typeindex knodb/flexindex})
 
 (module-export! '{wikidata.dir wikidata-build
-		  wikidata.pool wikidata.index
+		  wikidata.pool wikidata.index wikidbuild.index
 		  base.index wikids.index
 		  words.index norms.index
 		  props.index refs.index
@@ -59,6 +59,7 @@
 
 (define-init wikidata.pool #f)
 (define-init wikidata.index #f)
+(define-init wikidbuild.index #f)
 
 (define-init base.index #f)
 (define-init wikids.index #f)
@@ -204,6 +205,12 @@
 
   (set! wikid-classes (find-frames props.index 'type 'wikidclass))
 
+  (set! wikidbuild.index
+    (make-aggregate-index
+     {base.index wikids.index words.index norms.index refs.index
+      props.index subclassof.index instanceof.index}
+     #[register #t]))
+  
   (set! wikidata.index
     (make-aggregate-index
      {base.index wikids.index words.index norms.index refs.index

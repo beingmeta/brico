@@ -239,7 +239,7 @@
       `#[statefile ,statefile
 	 stopfile ,(glom jobid ".stop")
 	 donefile ,(or (getenv "ENGINE_DONEFILE") (getenv "U8_DONEFILE") (glom jobid ".done"))
-	 loop #[index ,wikidata.index
+	 loop #[index ,wikidbuild.index
 		wikidprops.index ,wikidprops.index
 		base.index ,base.index
 		wikids.index ,wikids.index]
@@ -261,7 +261,7 @@
 
 	 checkfreq ,(config 'checkfreq 60)
 	 checktests ,(engine/delta 'items (config 'checkcount 100000))
-	 checkpoint ,{wikidata.pool brico.pool wikidata.index wikidprops.index base.index wikids.index}
+	 checkpoint ,{wikidata.pool brico.pool wikidbuild.index wikidprops.index base.index wikids.index}
 	 stopfns
 	 ,(engine/test 'memusage (config 'maxmem {} config:bytes)
 		       'items (or maxitems {})
@@ -309,5 +309,5 @@
    (define (read-item in) (jsonparse (filestream/read in)))
    (define last-input #f)
    (define (import (in in))
-     (import-wikid-item (read-item in) wikidata.index base.index wikids.index))))
+     (import-wikid-item (read-item in) wikidbuild.index base.index wikids.index))))
 

@@ -233,11 +233,12 @@
   (config! 'brico:readonly #f)
   (config! 'wikid:readonly #f)
   (config-default! 'wikidata:skipindex #t)
-  (when importer
-    (unless (symbol? importer) (set! importer (getsym importer)))
-    (when (and importer (symbol-bound? importer))
-      ((eval importer))))
-  (unless importer
-    (import-occupations)
-    (import-war-and-peace))
-  (knodb/commit))
+  (unless (config 'smoketest)
+    (when importer
+      (unless (symbol? importer) (set! importer (getsym importer)))
+      (when (and importer (symbol-bound? importer))
+	((eval importer))))
+    (unless importer
+      (import-occupations)
+      (import-war-and-peace))
+    (knodb/commit)))
