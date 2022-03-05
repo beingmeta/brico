@@ -96,7 +96,11 @@
 	 (wikids (get (fetchoids items) 'wikid))
 	 (useids (filter-choices (wikid wikids) (fail? (?? 'wikidref wikid))))
 	 (imports (pick items 'wikid useids)))
+<<<<<<< HEAD
     (debug%watch "import-isa" items wikids useids imports)
+=======
+    ;;(debug%watch "import-isa" items wikids useids imports)
+>>>>>>> cad995d8abc42f5ae609c8c1226e0be6fe99b93f
     (if (getopt opts 'nthreads (config 'nthreads #t))
 	(engine/run (lambda (item) (import-by-isa item wf bf opts))
 	    imports)

@@ -51,6 +51,7 @@
   (local %loglevel (or wikidmap-loglevel %loglevel))
   (default! copy (getopt opts 'copy #t))
   (default! index (get-index brico))
+  (local %loglevel (or wikidmap-loglevel %loglevel))
   (let* ((curmap (get brico 'wikidref))
 	 (wikidref (if (string? wikidata) wikidata (get wikidata 'wikid)))
 	 (wikidata (if (string? wikidata) (wikid/ref wikidata) wikidata))

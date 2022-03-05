@@ -248,8 +248,8 @@
       (when (and importer (symbol-bound? importer))
 	((eval importer))))
     (unless importer
+      ;; (import-art) (import-dogs) (import-cats) (import-aircraft)
+      ;; (import-ships) (import-autos) (import-productions)
       (import-occupations)
-      (import-war-and-peace)
-      ;; f(import-art) (import-dogs) (import-cats) (import-aircraft) (import-ships) (import-autos)(import-productions)
-      )
+      (import-war-and-peace))
     (knodb/commit)))
