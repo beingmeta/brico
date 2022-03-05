@@ -8,10 +8,11 @@
 (use-module '{brico brico/wikid brico/build/wikidata brico/build/wikidata/map})
 (define %optmods '{brico brico/wikid brico/indexing brico/build/wikidata brico/build/map})
 
-(define-init %Loglevel %info%)
+(define-init %Loglevel %notice%)
 
 (module-export! '{import-by-isa import-isa-type import-isa import-by-genls
-		  import-by-occupation import-occupation})
+		  import-by-occupation import-occupation
+		  get-occupation-import find-occupation-imports})
 
 (define (get-specls wf)
   (let ((all wf)
@@ -72,6 +73,8 @@
 		  (fail))
 		 (else (fail)))))))
 
+;;;; Direct import
+
 (define (import-isa wf (opts #f) (bf))
   (default! bf (?? 'wikidref (get wf 'wikid)))
   (when (fail? bf) (irritant wf |NoBricoMap|))
@@ -93,7 +96,7 @@
 	 (wikids (get (fetchoids items) 'wikid))
 	 (useids (filter-choices (wikid wikids) (fail? (?? 'wikidref wikid))))
 	 (imports (pick items 'wikid useids)))
-    ;;(debug%watch "import-isa" items wikids useids imports)
+    (debug%watch "import-isa" items wikids useids imports)
     (if (getopt opts 'nthreads (config 'nthreads #t))
 	(engine/run (lambda (item) (import-by-isa item wf bf opts))
 	    imports)
@@ -103,6 +106,36 @@
 (define (import-isa-type wf bf (opts #f))
   (wikidmap! bf wf)
   (import-isa wf opts bf))
+
+;;; Phased isa import
+
+(define (import-subclasses wisa (opts #f))
+  (local classes
+	 (filter-choices (class (if (getopt opts 'specls) (get-specls wisa) wisa))
+	   (fail? (?? 'wikidref (get class 'wikid)))))
+  (when (exists? classes)
+    (lognotice |ImportISA|
+      "Importing instances of " ($count (|| classes) "classes" "class")
+      " beneath " wisa)
+    (when (exists? classes)
+      (lognotice |ImportIntermediateISAs|
+	"Importing " ($count (|| classes) "wikid classes" "wikid class"))
+      (do-choices (import-class classes)
+	(wikid/import! import-class)))))
+
+(define (get-isa-matches wf (opts #f) (bf))
+  (default! bf (?? 'wikidref (get wf 'wikid)))
+  (when (fail? bf) (irritant wf |NoBricoMap|))
+  (local classes (if (getopt opts 'specls) (get-specls wf) wf))
+  (debug%watch "import-isa" wf bf classes)
+  (let* ((items (pick (find-frames wikidata.index @?wikid_isa classes 'has wikid-instance-slotids) valid-oid?))
+	 (wikids (get (fetchoids items) 'wikid))
+	 (useids (filter-choices (wikid wikids) (fail? (?? 'wikidref wikid))))
+	 (imports (pick items 'wikid useids)))
+    (debug%watch "import-isa" items wikids useids imports)
+    (list imports wf bf)))
+
+;;; Phased genls import
 
 (define (import-by-genls item wf bf (opts #f))
   (let* ((known (?? 'wikidref (get item 'wikid)))
@@ -153,6 +186,8 @@
 		  (fail))
 		 (else (fail)))))))
 
+;;;; Import a particular occupation
+
 (define (import-by-occupation item occupation isa (opts #f))
   (let* ((spec [@?isa isa])
 	 (known (?? 'wikidref (get item 'wikid)))
@@ -190,6 +225,35 @@
 			  brico.pool (pool/getindexes brico.pool)})
 	  (commit)
 	  (swapout)))))
+
+;;; Just get individuals to map based on occupations
+
+(define (get-occupation-import item occupation isa)
+  (let* ((spec [@?isa isa])
+	 (known (?? 'wikidref (get item 'wikid)))
+	 (candidates (try known (wikid/getmap item spec [lower #f])))
+	 (unmapped (reject candidates 'wikidref)))
+    (cond ((exists? known) (fail))
+	  ((singleton? candidates)
+	   (tryif (not (test candidates '{wikidref wikid}))
+	     (cons item candidates)))
+	  ((fail? unmapped) item)
+	  ((ambiguous? candidates)
+	   (loginfo |Wikidmap| 
+	     "Ambiguous wikidata item " item " search on " 
+	     spec " (occupation)"
+	     (if (> (|| candidates) 4)
+		 (printout " matching " (|| candidates) " candidates")
+		 (do-choices (c candidates) (printout "\n\t" c))))
+	   (fail))
+	  (else (fail)))))
+
+(define (find-occupation-imports occupation (isa) (opts #f))
+  (default! isa (?? 'wikidref (get occupation 'wikid)))
+  (unless (testopt opts 'lower #f) (set! opts (opt+ opts 'lower #f)))
+  (tryif (exists? occupation)
+    (for-choices (item (find-frames wikidata.index @?wikid_occupation occupation))
+      (get-occupation-import item occupation isa))))
 
 #|
 (wikidmap! 

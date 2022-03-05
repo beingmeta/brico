@@ -24,6 +24,15 @@
    import-art})
 (module-export! '{import-art-opts})
 
+(module-export!
+ '{import-art
+   import-dogs
+   import-cats
+   import-aircraft
+   import-ships
+   import-autos
+   import-productions})
+
 (define %optmods
   '{brico brico/wikid brico/indexing
     brico/build/wikidata brico/build/wikidata/map
@@ -240,5 +249,7 @@
 	((eval importer))))
     (unless importer
       (import-occupations)
-      (import-war-and-peace))
+      (import-war-and-peace)
+      ;; f(import-art) (import-dogs) (import-cats) (import-aircraft) (import-ships) (import-autos)(import-productions)
+      )
     (knodb/commit)))
