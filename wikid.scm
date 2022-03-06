@@ -19,9 +19,9 @@
 (define-init wikid.setup #f)
 (define-init wikid.index #f)
 (define-init wikid.indexes #f)
-(define-init wikid.opts #[background #f readonly #t basename "wikid.pool"])
+(define-init wikid.opts #[background #f readonly #t basename "wikid.flexpool"])
 
-(define-init wikid.opts #[readonly #t basename "wikid.pool"])
+(define-init wikid.opts #[readonly #t basename "wikid.flexpool"])
 
 (define-init wikid:readonly #t)
 
@@ -98,5 +98,4 @@
 
 (config-def! 'wikid:source wikidsource-configfn)
 (config-def! 'wikidsource wikidsource-configfn)
-
 
