@@ -96,6 +96,15 @@
 (define-init wikidsource-configfn
   (knodb/configfn setup-wikid wikid.opts))
 
+;;; Handle wikid:source and wikidsource conflicts
+(define-init pre-configured #f)
+(unless (or pre-configured (config 'wikid:disabled))
+  (let ((pre-config (or (config 'wikid:source) (config 'wikidsource))))
+    (when pre-config
+      (config! 'wikid:source pre-config)
+      (config! 'wikidsource pre-config)
+      (wikidsource-configfn 'wikid:source pre-config))))
+
 (config-def! 'wikid:source wikidsource-configfn)
 (config-def! 'wikidsource wikidsource-configfn)
 

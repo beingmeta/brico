@@ -823,6 +823,8 @@
 		     (lognotice |BRICO| "Enabling future database configuration"))))))))
 
 (define-init bricosource-configfn (knodb/configfn setup-brico brico.opts))
+(when (and (or (config 'brico:source) (config 'bricosource)) (not (config 'brico:disabled)))
+  (bricosource-configfn 'brico:source (or (config 'brico:source) (config 'bricosource))))
 (config-def! 'brico:source bricosource-configfn)
 (config-def! 'bricosource
   (lambda (var (val))
