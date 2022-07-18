@@ -19,7 +19,6 @@
    import-musicians
    import-diplomats
    import-politicians
-   import-occupations
    import-war-and-peace
    import-art})
 (module-export! '{import-art-opts})
@@ -172,7 +171,7 @@
   (pick (wikidata/find @?wikid_isa meta-roles) wikidata->brico))
 (module-export! 'get-occupations)
 
-(define (import-occupations)
+(define (old-import-occupations)
   (let* ((occupations (pick (wikidata/find @?wikid_isa meta-roles)
 			wikidata->brico))
 	 (done (try (file-exists? (getdone "occupations"))
@@ -235,21 +234,31 @@
   (import-isa @31c1/540(wikidata "Q1344" norm "opera") import-art-opts)
   (import-isa @31c1/525f9a(wikidata "Q5398426" norm "television series") import-art-opts)
   (import-isa @31c1/75eb2(wikidata "Q482994" norm "album") import-art-opts)
-  ;; (import-isa @31c1/291a56c(wikidata "Q43099500" norm "performing arts production"))
+  ;; (import-isa @31c1/291a56c(wikidata "Q43099500" norm "performing arts production"))opt
   )
+
+(define (import-nerds)
+  (import-occupations 
+   {
+    @1/12e50(noun.person "philosopher" genls "scholarly person")
+    @1/12e53(noun.person "scientist" genls "individual")
+    @1/20122(noun.person "research worker" genls "scientist")
+    }))
+
+(define (handle-config-ref arg)
+  (if (not arg) (fail)
+      (if (or (pair? arg) (vector? arg))
+	  (elts (map handle-config-ref arg))
+	  (if (oid? arg) arg
+	      (tryif (string? arg) (?? 'wikidref arg))))))
 
 (define (main (importer (config 'importer)))
   (config! 'brico:readonly #f)
   (config! 'wikid:readonly #f)
   (config-default! 'wikidata:skipindex #t)
   (unless (config 'smoketest)
-    (when importer
-      (unless (symbol? importer) (set! importer (getsym importer)))
-      (when (and importer (symbol-bound? importer))
-	((eval importer))))
-    (unless importer
-      ;; (import-art) (import-dogs) (import-cats) (import-aircraft)
-      ;; (import-ships) (import-autos) (import-productions)
-      (import-occupations)
-      (import-war-and-peace))
+    (let ((occupations (handle-config-ref (config 'occupation)))
+	  (isa (handle-config-ref (config 'isa))))
+      (import-occupations occupations)
+      (import-isa isa))
     (knodb/commit)))

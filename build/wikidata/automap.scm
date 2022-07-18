@@ -11,10 +11,11 @@
 (define-init %Loglevel %notice%)
 
 (module-export! '{import-by-isa import-isa-type import-isa import-by-genls
-		  import-by-occupation import-occupation
-		  get-occupation-import find-occupation-imports})
+		  import-by-occupation get-occupation-import find-occupation-imports
+		  import-occupations
+		  wikidata-specls*})
 
-(define (get-specls wf)
+(define (wikidata-specls* wf)
   (let ((all wf)
 	(next (?? wikidata.index @?wikid_genls wf)))
     (while (exists? (difference next all))
@@ -78,7 +79,7 @@
 (define (import-isa wf (opts #f) (bf))
   (default! bf (?? 'wikidref (get wf 'wikid)))
   (when (fail? bf) (irritant wf |NoBricoMap|))
-  (local classes (if (getopt opts 'specls) (get-specls wf) wf))
+  (local classes (if (getopt opts 'specls) (wikidata-specls* wf) wf))
   (debug%watch "import-isa" wf bf classes)
   (when (ambiguous? classes)
     (lognotice |ImportISA|
@@ -96,11 +97,7 @@
 	 (wikids (get (fetchoids items) 'wikid))
 	 (useids (filter-choices (wikid wikids) (fail? (?? 'wikidref wikid))))
 	 (imports (pick items 'wikid useids)))
-<<<<<<< HEAD
     (debug%watch "import-isa" items wikids useids imports)
-=======
-    ;;(debug%watch "import-isa" items wikids useids imports)
->>>>>>> cad995d8abc42f5ae609c8c1226e0be6fe99b93f
     (if (getopt opts 'nthreads (config 'nthreads #t))
 	(engine/run (lambda (item) (import-by-isa item wf bf opts))
 	    imports)
@@ -115,22 +112,19 @@
 
 (define (import-subclasses wisa (opts #f))
   (local classes
-	 (filter-choices (class (if (getopt opts 'specls) (get-specls wisa) wisa))
-	   (fail? (?? 'wikidref (get class 'wikid)))))
+	 (difference (if (getopt opts 'specls) (wikidata-specls* wisa) wisa)
+		     (wikidata/mapped)))
   (when (exists? classes)
     (lognotice |ImportISA|
       "Importing instances of " ($count (|| classes) "classes" "class")
       " beneath " wisa)
-    (when (exists? classes)
-      (lognotice |ImportIntermediateISAs|
-	"Importing " ($count (|| classes) "wikid classes" "wikid class"))
-      (do-choices (import-class classes)
-	(wikid/import! import-class)))))
+    (do-choices (import-class classes)
+      (wikid/import! import-class))))
 
 (define (get-isa-matches wf (opts #f) (bf))
   (default! bf (?? 'wikidref (get wf 'wikid)))
   (when (fail? bf) (irritant wf |NoBricoMap|))
-  (local classes (if (getopt opts 'specls) (get-specls wf) wf))
+  (local classes (if (getopt opts 'specls) (wikidata-specls* wf) wf))
   (debug%watch "import-isa" wf bf classes)
   (let* ((items (pick (find-frames wikidata.index @?wikid_isa classes 'has wikid-instance-slotids) valid-oid?))
 	 (wikids (get (fetchoids items) 'wikid))
@@ -190,19 +184,38 @@
 		  (fail))
 		 (else (fail)))))))
 
+
 ;;;; Import a particular occupation
 
-(define (import-by-occupation item occupation isa (opts #f))
+(define meta-occupations
+  {(wikidata/ref "Q28640" "profession") 	;;=#13.1
+   (wikidata/ref "Q12737077" "occupation")})
+
+(define (get-occupations)
+  (intersection (wikidata/find @?wikid_isa meta-occupations)
+		(wikidata/mapped)))
+(module-export! 'get-occupations)
+
+(define (all-occupied)
+  (prefetch-keys! (cons @?wikid_occupation (get-occupations)) wikidata.index )
+  (find-frames wikidata.index @?wikid_occupation (get-occupations)))
+(define (new-occupied)
+  (difference (all-occupied) (wikidata/mapped)))
+
+(module-export! '{all-occupied new-occupied})
+
+(define (import-by-occupation opts item occupation isa)
   (let* ((spec [@?isa isa])
 	 (known (?? 'wikidref (get item 'wikid)))
 	 (candidates (try known (wikid/getmap item spec [lower #f])))
-	 (unmapped (reject candidates 'wikidref)))
+	 (unmapped (reject candidates 'wikidref))
+	 (index (getopt opts 'index wikid.index)))
     (cond ((exists? known))
 	  ((singleton? candidates)
 	   (loginfo |WikidMap| "Found unique map for " item "\n   to " candidates))
 	  ((fail? unmapped)
 	   (lognotice |WikidImport| 
-	     "Imported " item "\n   into " (wikid/import! item [lower #f])))
+	     "Imported " item " into " (wikid/import! item [lower #f index index])))
 	  ((ambiguous? candidates)
 	   (logwarn |Wikidmap| 
 	     "Ambiguous wikidata item " item " search on " 
@@ -212,52 +225,71 @@
 		 (do-choices (c candidates) (printout "\n\t" c)))))
 	  (else))))
 
-(define (import-occupation occupation (isa) (opts #f))
-  (default! isa (?? 'wikidref (get occupation 'wikid)))
-  (unless (testopt opts 'lower #f) (set! opts (opt+ opts 'lower #f)))
-  (if (fail? occupation)
-      (logwarn |NoCognate| "No mapped BRICO concept for " occupation)
-      (let ((items (find-frames wikidata.index @?wikid_occupation occupation)))
-	(when (exists? items)
-	  (if (config 'nthreads #t)
-	      (engine/run (defn (occupation-importer item)
-			    (import-by-occupation item occupation isa opts))
-		  items)
-	      (do-choices (item items)
-		(import-by-occupation item occupation isa opts)))
-	  (knodb/commit! {wikid.pool (pool/getindexes wikid.pool)
-			  brico.pool (pool/getindexes brico.pool)})
-	  (commit)
-	  (swapout)))))
+(defambda (import-occupations occupations (opts #f))
+  (prefetch-oids! occupations)
+  (when (getopt opts 'subclasses (config 'wikid:import:specls #t config:boolean))
+    (set+! occupations (?? genls* occupations)))
+  (let ((todo {})
+	(dosave (getopt opts 'save (config 'wikid:import:save #t config:boolean)))
+	(mapped (choice->hashset (wikidata/mapped))))
+    (do-choices (occupation occupations)
+      (let* ((wikid-occupation (probe-wikidoid (get occupation 'wikidref)))
+	     (candidates (begin (prefetch-keys! (cons @?wikid_occupation wikid-occupation) wikidata.index)
+			   (find-frames wikidata.index @?wikid_occupation wikid-occupation)))
+	     (occupied (reject candidates mapped)))
+	;;(%watch occupation wikid-occupation (|| occupied) )
+	(hashset-add! mapped occupied)
+	(set+! todo (vector occupied wikid-occupation occupation))))
+    (lognotice |ImportOccupations| 
+      ($count (|| todo) "individuals") " based on " ($count (|| occupations) "occupations"))
+    (if (getopt opts 'nthreads (config 'wikid:import:nthreads #t))
+	(engine/run (defn (occupation-importer item)
+		      (apply import-by-occupation opts item))
+	    todo
+	  (frame-create #f
+	    'checkpoint (tryif dosave
+			  {wikid.index (dbctl wikid.index 'partitions) 
+			   wikid.pool (dbctl wikid.pool 'partitions)})
+	    'checktests (tryif dosave (engine/maxchanges 4_000_000))
+	    'maxitems (getopt opts 'maxitems (config 'wikid:import:maxitems {}))
+	    'logfreq 40))
+	(do-choices (item todo) (apply import-by-occupation opts item)))
+    (when dosave
+      (knodb/commit! {wikid.pool (pool/getindexes wikid.pool)
+		      brico.pool (pool/getindexes brico.pool)})
+      (commit))
+    (swapout)))
+
+;;; Dead code
 
 ;;; Just get individuals to map based on occupations
 
-(define (get-occupation-import item occupation isa)
-  (let* ((spec [@?isa isa])
-	 (known (?? 'wikidref (get item 'wikid)))
-	 (candidates (try known (wikid/getmap item spec [lower #f])))
-	 (unmapped (reject candidates 'wikidref)))
-    (cond ((exists? known) (fail))
-	  ((singleton? candidates)
-	   (tryif (not (test candidates '{wikidref wikid}))
-	     (cons item candidates)))
-	  ((fail? unmapped) item)
-	  ((ambiguous? candidates)
-	   (loginfo |Wikidmap| 
-	     "Ambiguous wikidata item " item " search on " 
-	     spec " (occupation)"
-	     (if (> (|| candidates) 4)
-		 (printout " matching " (|| candidates) " candidates")
-		 (do-choices (c candidates) (printout "\n\t" c))))
-	   (fail))
-	  (else (fail)))))
+;; (define (get-occupation-import item occupation isa)
+;;   (let* ((spec [@?isa isa])
+;; 	 (known (?? 'wikidref (get item 'wikid)))
+;; 	 (candidates (try known (wikid/getmap item spec [lower #f])))
+;; 	 (unmapped (reject candidates 'wikidref)))
+;;     (cond ((exists? known) (fail))
+;; 	  ((singleton? candidates)
+;; 	   (tryif (not (test candidates '{wikidref wikid}))
+;; 	     (cons item candidates)))
+;; 	  ((fail? unmapped) item)
+;; 	  ((ambiguous? candidates)
+;; 	   (loginfo |Wikidmap| 
+;; 	     "Ambiguous wikidata item " item " search on " 
+;; 	     spec " (occupation)"
+;; 	     (if (> (|| candidates) 4)
+;; 		 (printout " matching " (|| candidates) " candidates")
+;; 		 (do-choices (c candidates) (printout "\n\t" c))))
+;; 	   (fail))
+;; 	  (else (fail)))))
 
-(define (find-occupation-imports occupation (isa) (opts #f))
-  (default! isa (?? 'wikidref (get occupation 'wikid)))
-  (unless (testopt opts 'lower #f) (set! opts (opt+ opts 'lower #f)))
-  (tryif (exists? occupation)
-    (for-choices (item (find-frames wikidata.index @?wikid_occupation occupation))
-      (get-occupation-import item occupation isa))))
+;; (define (find-occupation-imports occupation (isa) (opts #f))
+;;   (default! isa (?? 'wikidref (get occupation 'wikid)))
+;;   (unless (testopt opts 'lower #f) (set! opts (opt+ opts 'lower #f)))
+;;   (tryif (exists? occupation)
+;;     (for-choices (item (find-frames wikidata.index @?wikid_occupation occupation))
+;;       (get-occupation-import item occupation isa))))
 
 #|
 (wikidmap! 

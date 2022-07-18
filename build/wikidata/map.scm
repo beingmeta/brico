@@ -17,11 +17,12 @@
 		  wikidmap wikidmatch wikid/getmap wikidmap!
 		  wikid/import! wikid/copy! wikid/update!
 		  wikidata/import/enginefn
+		  wikidata/mapped
 		  wikid/drop!})
 
 (define %loglevel %notice%)
 
-(define-init skip-index #t)
+(define-init skip-index #f)
 (varconfig! wikidata:skipindex skip-index config:boolean)
 (define-init always-index '{wikidref wikid pending type})
 
@@ -31,6 +32,25 @@
 
 (define-init wikidmap-loglevel #f)
 (varconfig! wikidmap:loglevel wikidmap-loglevel config:loglevel)
+
+;;;; Tracking mapped objects
+
+(define-init wikidata-mapped #f)
+
+(define (wikidata/mapped)
+  (if (not wikidata-mapped)
+      (let ((bricovec (getkeyvec (pool/index/find brico.pool 'name 'wikidrefs)))
+	    (wikidvec (getkeyvec (pool/index/find wikid.pool 'name 'wikidrefs)))
+	    (mapped {}))
+	(doseq (elt bricovec)
+	  (when (string? elt) (set+! mapped (->wikidata elt))))
+	(doseq (elt wikidvec)
+	  (when (string? elt) (set+! mapped (->wikidata elt))))
+	(set! wikidata-mapped mapped)
+	mapped)
+      wikidata-mapped))
+
+;;;; Indexing
 
 (define (get-index f)
   (cond ((in-pool? f brico.pool) brico.index)
@@ -47,10 +67,12 @@
 	      (drop! ix value frame)
 	      (drop! ix (cons slot value) frame))))))
 
-(defambda (wikidmap! brico wikidata (opts #f) (copy) (index))
+(defambda (wikidmap! brico wikidata (opts #f) (copy) (index) (wikidrefs.index))
   (local %loglevel (or wikidmap-loglevel %loglevel))
   (default! copy (getopt opts 'copy #t))
   (default! index (get-index brico))
+  (default! wikidrefs.index
+    (try (pool/index/find (getpool brico) 'name 'wikidrefs) #f))
   (local %loglevel (or wikidmap-loglevel %loglevel))
   (let* ((curmap (get brico 'wikidref))
 	 (wikidref (if (string? wikidata) wikidata (get wikidata 'wikid)))
@@ -75,6 +97,8 @@
 	  (drop! disowned p v)
 	  (when index (unindex! index disowned p v)))))
     (when index (index-frame index brico 'wikidref wikidref))
+    (when wikidrefs.index (index-frame wikidrefs.index brico 'wikidref wikidref))
+    (when wikidata-mapped (set+! wikidata-mapped wikidref))
     (when copy (wikid/copy! wikidata brico index))))
 
 (define (wikid/drop! brico (index))
@@ -221,10 +245,11 @@
 
 (define (wikid/copy! wikid frame (opts #f) (index wikid.index) (template #f) (unmapped {}))
   (local dropvals (and (oid? frame) (in-pool? frame wikid.pool)))
-  (local doindex (and index (not skip-index) (oid? frame)))
   (cond ((index? opts) (set! index opts) (set! opts #f))
-	(else (default! index (getopt opts 'index))))
-  (logmsg (- %INFO%) |WikidCopy| frame wikid)
+	(else (default! index (getopt opts 'index #f))))
+  (local doindex (and index (not skip-index) (oid? frame)))
+  (logmsg (- %INFO%) |WikidCopy| wikid " ==> " frame
+	  (when doindex (printout " index " index)))
   (copy-lexslots wikid frame (and doindex index) opts)
   (when doindex (index-core index frame))
   (do-choices (prop (pickoids (getkeys wikid)))
@@ -311,12 +336,15 @@
 			  (wikidata->brico wikidstring)
 			  #f)
 		     #f))
+	 (sensecat (getopt template 'sensecat (getopt opts 'sensecat {})))
+	 (types (getopt template 'type (getopt opts 'type 'noun)))
 	 (label (try (pick-one (get wikid 'norms)) (pick-one (get wikid 'words))))
 	 (pool (getopt opts 'pool wikid.pool))
 	 (frame (or cached
 		    (frame-create pool
-		      '%id `(WIKID ,label ,wikidstring)
-		      'type {'wikid (getopt opts 'type '{noun thing})}
+		      '%id `(WIKID ,(try sensecat types 'mystery) ,label ,wikidstring)
+		      'type {'wikid types}
+		      'sensecat sensecat
 		      'source 'wikidata
 		      'wikidref wikidstring
 		      'imported (config 'sessionid)
@@ -329,10 +357,10 @@
       (wikid/copy! wikid frame (or index (get-index frame)) template))
     frame))
 
-(defambda (wikidata/import/enginefn batch)
+(defambda (wikidata/import/enginefn batch batch-state loop-state task-state)
   (prefetch-oids! batch)
-  (prefetch-keys! wikid.index (cons 'wikidref (get batch 'wikid)))
+  (local opts (getopt (getopt loop-state 'opts) 'import))
   (if (vector? batch)
-      (wikid/import! (elts batch))
-      (wikid/import! batch)))
+      (wikid/import! (elts batch) opts)
+      (wikid/import! batch) opts))
 

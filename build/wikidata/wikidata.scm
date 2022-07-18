@@ -25,6 +25,7 @@
 		  wikidata/class!
 		  get-wikidref
 		  probe-wikidref
+		  probe-wikidoid
 		  get-wikidprop
 		  wikid/brico/ref
 		  brico/ref
@@ -269,6 +270,10 @@
       (try (get propmaps.table id)
 	   (get propmaps.table (upcase id))
 	   (make-new-prop (upcase id)))))
+
+(define (probe-wikidoid id)
+  (tryif (has-prefix id {"Q" "q"})
+    (oid-plus @31c1/0 (string->number (slice id 1)))))
 
 (define (probe-wikidref id)
   (if (has-prefix id "Q")

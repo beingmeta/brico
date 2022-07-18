@@ -283,7 +283,10 @@
 	(do-choices (thread (get state 'threads))
 	  (lineout "  " (thread-id thread) "\t" thread)))
       (logwarn |RunDone| "Trying redundant commit")
-      (commit))))
+      (commit)
+      (config! 'fastexit #t)
+      (logwarn |RunDone|
+	"Everything is saved, exiting (main)"))))
   
 (when (config 'optimized #t)
   (optimize! '{knodb knodb/flexpool knodb/flexindex knodb/adjuncts 
