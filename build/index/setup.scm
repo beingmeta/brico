@@ -65,7 +65,9 @@
     #[name properties path "properties.index" sizing 10.0]
     })
 
-(define separators '{NL ES IT DE SK PL ZH KO RU JA})
+(define separators
+  '{id min ms is tr br hr pt af lt cs gl nds et cy eu sq da lb ro nn rm
+    ca sco ga nb sc oc fur vi sv mt eo co ar fi hu gd sl el fr})
 (define separate-words {separators '{}})
 (define separate-norms {separators '{}})
 (define separate-fragments {separate-words '{}})

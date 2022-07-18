@@ -117,6 +117,12 @@
 			wikidrefs.index 
 			latlong.index}
 	 batchsize ,(config 'batchsize 10000)
+
+
+	 ;; checktests ,{(tryif (config 'savefreq)
+	 ;; 		(engine/interval (getopt opts 'savefreq (config 'savefreq 60))))
+	 ;; 	      (engine/maxchanges (getopt opts 'maxchanges 1_000_000))}
+
 	 checktests ,(engine/interval (config 'savefreq 60))
 	 checkpoint ,{pool core.index wikidprops.index wordnet.index 
 		      wikidrefs.index latlong.index}

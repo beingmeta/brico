@@ -34,7 +34,7 @@
 (when (config 'checkdirs #t config:boolean) (check-dirs))
 
 (define (getdbpool arg (indexes 'core))
-  (let ((pool (use-pool arg)))
+  (let ((pool (knodb/ref arg)))
     (when (eq? (pool-base pool) @1/0) 
       (config! 'bricosource pool))
     (config! 'brico:disabled #f)
@@ -86,7 +86,8 @@
 (define (target-file name) (mkpath outdir name))
 
 (define-init flexindex-threshold #f) ;; 20000000
-(define-init flexindex-partsize  10000000) ;; 20000000
+;;(define-init flexindex-partsize  10_000_000) ;; 20000000
+(define-init flexindex-partsize  1_000_000) ;; 20000000
 
 (define (writable-index . args)
   (let ((ix (apply open-index args)))

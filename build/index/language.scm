@@ -3,21 +3,14 @@
 
 (in-module 'brico/build/index/languages)
 
-(use-module '{texttools varconfig logger optimize text/stringfmts engine})
+(use-module '{texttools varconfig logger optimize text/stringfmts kno/threads engine})
 ;;; This module needs to go early because it (temporarily) disables the brico database
 (use-module 'brico/build/index)
 
-(use-module '{knodb knodb/search knodb/fuzz knodb/adjuncts knodb/flexindex})
+(use-module '{knodb knodb/search knodb/fuzz knodb/adjuncts knodb/flexindex knodb/flexpool})
 (use-module '{brico})
 
-(define just-languages {})
-(define skip-languages {})
-(varconfig! brico:terms:justlangs just-languages)
-(varconfig! brico:terms:skiplangs skip-languages)
-
 (define english @1/2c1c7)
-
-(define default-size 50)
 
 (define lexslots '{%words %norms %glosses %glosses %indicators})
 
@@ -38,6 +31,14 @@
 	 (glosses.adjunct (get loop-state 'glosses.adjunct))
 	 (indicators.adjunct (get loop-state 'indicators.adjunct))
 	 (aliases.adjunct (get loop-state 'aliases.adjunct)))
+    (debug%watch "index-words"
+      core.index "partitions" (dbctl core.index 'partitions)
+      words.index "partitions" (dbctl words.index 'partitions)
+      frags.index "partitions" (dbctl frags.index 'partitions)
+      norms.index "partitions" (dbctl norms.index 'partitions)
+      aliases.index "partitions" (dbctl aliases.index 'partitions)
+      glosses.index "partitions" (dbctl glosses.index 'partitions)
+      )
     (prefetch-oids! f)
     (pool-prefetch! words.adjunct f)
     (pool-prefetch! norms.adjunct f)
@@ -133,52 +134,57 @@
 
 (define default-partopts [maxload 0.8 partsize 4000000])
 
-(define separate-languages '{EN NL ES IT DE SK PL DK})
-(define separate-languages 'EN)
+(define (get-lex-index pool lang lextype)
+  (try (pool/index/find pool 'keyslot (?? 'type lextype 'language lang))
+       (pool/index/find pool 'name (string->symbol (glom (get lang '%langid) "_etc")))
+       (pool/index/find pool 'name (string->symbol (glom "babel_" lextype)))
+       (pool/index/find pool 'name 'babel_etc)
+       (make-lex-index pool lang lextype)))
 
-(defambda (get-indexes pool lextype)
-  (make-aggregate-index
-   (for-choices (lang all-languages)
-     (try (pool/index/target pool 'keyslot (?? 'type lextype 'language lang))
-	  (pool/index/target pool 'name (string->symbol (glom (get lang '%langid) "_etc")))
-	  (let ((spec (try (pool/index/spec pool 'name (string->symbol (glom "babel_" lextype)))
-			   (pool/index/spec pool 'name 'babel_etc)
-			   #[name babel_etc path "babel_etc.index" size #4mib])))
-	    (flex/open-index (mkpath (dirname (pool-source pool))
-				     (string-subst (get spec 'path) ".index" ".flexindex"))
-			     (cons `#[type flexindex flexindex kindex size #4mib create #t]
-				   spec))))))) 
+(defslambda (make-lex-index pool lang lextype)
+  (try (pool/index/target pool 'keyslot (?? 'type lextype 'language lang))
+       (pool/index/target pool 'name (string->symbol (glom (get lang '%langid) "_etc")))
+       (let ((spec (try (pool/index/spec pool 'name (string->symbol (glom "babel_" lextype)))
+			(pool/index/spec pool 'name 'babel_etc)
+			#[name babel_etc path "babel_etc.index" size #4mib])))
+	 (knodb/ref (mkpath (dirname (pool-source pool))
+			    (string-subst (get spec 'path) ".index" ".flexindex"))
+		    (cons `#[type flexindex flexindex kindex size #4mib create #t]
+			  spec)))))
 
-(define (main poolname . languages)
-  (config! 'appid (glom "index-" (basename poolname ".pool") "-multilingual"))
-  (when (config 'optimize #t)
-    (optimize! '{engine brico brico/indexing brico/lookup
-		 knodb knodb/search
-		 knodb/fuzz knodb/fuzz/strings knodb/fuzz/terms
-		 knodb/fuzz/text knodb/fuzz/graph}))
-  (let* ((pool (getdbpool poolname))
-	 (nconcepts (max (pool-load pool) #mib))
-	 (core.index (pool/index/target pool 'name 'core))
-	 (words.index (get-indexes pool 'words))
-	 (norms.index (get-indexes pool 'norms))
-	 (frags.index (get-indexes pool 'fragments))
-	 (glosses.index (get-indexes pool 'glosses))
-	 (indicators.index (get-indexes pool 'indicators))
-	 (aliases.index (get-indexes pool 'aliases))
+(defambda (get-indexes pool lextypes (languages all-languages))
+  (make-aggregate-index (mt/call #[] get-lex-index pool languages lextypes)))
+
+(define (get-base-indexes pool)
+  (let ((core.index (pool/index/target pool 'name 'core))
+	(words.index (get-indexes pool 'words))
+	(norms.index (get-indexes pool 'norms))
+	(frags.index (get-indexes pool 'fragments))
+	(glosses.index (get-indexes pool 'glosses))
+	(indicators.index (get-indexes pool 'indicators))
+	(aliases.index (get-indexes pool 'aliases)))
+    `#[core.index ,core.index
+       words.index ,words.index
+       norms.index ,norms.index
+       frags.index ,frags.index
+       glosses.index ,glosses.index
+       indicators.index ,indicators.index
+       aliases.index ,aliases.index]))
+      
+(define (index-languages pool (indexes))
+  (default! indexes (get-base-indexes pool))
+  (let* ((nconcepts (max (pool-load pool) #mib))
 	 (adjuncts (begin (adjuncts/init! pool) (poolctl pool 'adjuncts)))
 	 (oids (difference (pool-elts pool) (?? 'source @1/1) (?? 'status 'deleted)))
-	 (loop-init `#[core.index ,core.index
-		       words.index ,words.index 
-		       frags.index ,frags.index
-		       indicators.index ,indicators.index
-		       glosses.index ,glosses.index
-		       aliases.index ,aliases.index
-		       norms.index ,norms.index
-		       words.adjunct ,(get adjuncts '%words)
-		       norms.adjunct ,(get adjuncts '%norms)
-		       glosses.adjunct ,(get adjuncts '%glosses)
-		       indicators.adjunct ,(get adjuncts '%indicators)
-		       aliases.adjunct ,(get adjuncts '%aliases)]))
+	 (loop-init (frame-create indexes
+		      'words.adjunct (get adjuncts '%words)
+		      'norms.adjunct (get adjuncts '%norms)
+		      'glosses.adjunct (get adjuncts '%glosses)
+		      'indicators.adjunct (get adjuncts '%indicators)
+		      'aliases.adjunct (get adjuncts '%aliases))))
+    (%watch "index-languages"
+      "\nindexes" indexes
+      "\nloop-init" loop-init)
     (engine/run index-words oids
       `#[loop ,loop-init
 	 branchindexes {core.index aliases.index words.index frags.index
@@ -190,12 +196,26 @@
 	 checkfreq 15
 	 checktests ,{(engine/delta 'items 100000)
 		      (engine/maxchanges 2000000)}
-	 checkpoint ,{pool core.index words.index frags.index 
-		      indicators.index aliases.index
-		      norms.index glosses.index}
+	 checkpoint ,{pool (getvalues indexes)}
 	 logfns {,engine/log ,engine/logrusage}
 	 logchecks #t])
     (commit)))
+
+(define (main poolname)
+  (config! 'appid (glom "index-" (basename poolname #t) "-terms"))
+  (when (config 'optimize #t)
+    (optimize! '{engine brico brico/indexing brico/lookup
+		 knodb knodb/search
+		 knodb/fuzz knodb/fuzz/strings knodb/fuzz/terms
+		 knodb/fuzz/text knodb/fuzz/graph}))
+  (let ((pool (getdbpool poolname)))
+    (if (flexpool? pool)
+	(let ((indexes (get-base-indexes pool)))
+	  (do-choices (p (dbctl pool 'partitions) i)
+	    (config! 'appid (glom "index-" (basename poolname #t) "-terms." (1+ i)))
+	    (index-languages p indexes)))
+	(index-languages pool))))
+
 
 (when (config 'optimize #t config:boolean)
   (optimize! '{knodb knodb/branches knodb/search 

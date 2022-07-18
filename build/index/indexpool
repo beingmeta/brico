@@ -4,19 +4,13 @@ shift;
 DBDIR=$(dirname ${POOL_ARG})
 CONFIGS=BRICOSOURCE=./brico/ DBLOGLEVEL=warn
 if [ -z "${DBDIR}" ]; then DBDIR="."; fi
-if [ -d "${POOL_ARG#+}" ]; then
-    POOL_ARG="${POOL_ARG#+}"
-    DBNAME=$(basename ${POOL_ARG} /)
-    DBDIR="fresh/${DBNAME}";
-    if [ ! -f "${DBDIR}/${DBNAME}.pool" ]; then
-	echo "Copying pools to working directory ${DBDIR}";
-        cp -v ${POOL_ARG}/*.pool ${DBDIR};
-    fi;
-    POOL="${DBDIR}/${DBNAME}.pool"
-elif [ -d ${POOL_ARG} ]; then
+if [ -d ${POOL_ARG} ]; then
     DBNAME=$(basename ${POOL_ARG} /)
     if [ -f ${POOL_ARG}/${DBNAME}.pool ]; then
 	POOL=${POOL_ARG}/${DBNAME}.pool;
+	DBDIR=${POOL_ARG};
+    elif [ -f ${POOL_ARG}/${DBNAME}.flexpool ]; then
+	POOL=${POOL_ARG}/${DBNAME}.flexpool;
 	DBDIR=${POOL_ARG};
     else
 	echo "indexpool: Can't find pool to index in ${POOL_ARG}";

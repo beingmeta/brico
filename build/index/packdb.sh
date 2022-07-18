@@ -7,6 +7,6 @@ pxargs(){
 }
 cd ${DIR};
 ls *.flexindex | pxargs 2 knodb flexpack _item BACKUP=${BACKUP} >> pack.log 2>&1 &
-ls *.pool *.index | grep -v "\\.[[:digit:]]\\.index" | \
+ls *.pool pools/*.pool *.index 2> /dev/null | grep -v "\\.[[:digit:]]\\.index" | \
     pxargs 7 knodb pack COMPRESSION=zstd19 BACKUP=${BACKUP} _item >> pack.log 2>&1 &
 wait && if [ "${BACKUP}" = ".orig" ]; then rm -f *.orig; fi;
