@@ -6,7 +6,7 @@
 
 (use-module '{webtools archivetools texttools logger varconfig})
 (use-module '{io/filestream text/stringfmts optimize})
-(use-module '{kno/reflect kno/profile kno/mttools kno/statefiles})
+(use-module '{kno/reflect kno/profile kno/profiling kno/mttools kno/statefiles})
 (use-module '{engine engine/readfile})
 
 (use-module '{knodb knodb/branches knodb/typeindex regex knodb/flexindex})
@@ -284,6 +284,10 @@
 	  (lineout "  " (thread-id thread) "\t" thread)))
       (logwarn |RunDone| "Trying redundant commit")
       (commit)
+      (when (or (config 'profiling #f) (and (exists? (config 'profiled)) (config 'profiled)))
+        (profile/report import-enginefn #default
+                        profile/time profile/utime profile/stime profile/ncalls profile/nitems
+                        profile/waits profile/pauses profile/faults))
       (config! 'fastexit #t)
       (logwarn |RunDone|
 	"Everything is saved, exiting (main)"))))
@@ -299,6 +303,7 @@
 
 (when (config 'profiling #f)
   (config! 'profiled filestream/read)
+  (config! 'profiled {oid-value index-frame})
   (config! 'profiled 
 	   {get-wikidref probe-wikidref get-wikidprop
 	    import-wikid-item 
