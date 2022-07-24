@@ -287,7 +287,10 @@
       (when (or (config 'profiling #f) (and (exists? (config 'profiled)) (config 'profiled)))
         (profile/report import-enginefn #default
                         profile/time profile/utime profile/stime profile/ncalls profile/nitems
-                        profile/waits profile/pauses profile/faults))
+                        profile/waits profile/pauses profile/faults)
+        (let ((filename (glom (config 'jobid (config 'appid)) ".profile.xtype")))
+          (write-xtype (profiles->table) filename)
+          (logwarn |ProfileWritten| filename)))
       (config! 'fastexit #t)
       (logwarn |RunDone|
 	"Everything is saved, exiting (main)"))))
@@ -301,9 +304,13 @@
   (optimize-locals!)
   (logwarn |Optimized| (get-source)))
 
+(define engine (get-module 'engine))
+
 (when (config 'profiling #f)
   (config! 'profiled filestream/read)
   (config! 'profiled {oid-value index-frame})
+  (config! 'profiled {commit knodb/commit engine/checkpoint
+                      (get engine 'engine-commit)})
   (config! 'profiled 
 	   {get-wikidref probe-wikidref get-wikidprop
 	    import-wikid-item 
