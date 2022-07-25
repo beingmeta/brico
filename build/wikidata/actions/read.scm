@@ -15,6 +15,10 @@
 (module-export! '{main})
 (module-export! '{import-wikid-item convert-claims})
 
+(define engine (get-module 'engine))
+(define branches (get-module 'knodb/branches))
+(define flexindex (get-module 'knodb/flexindex))
+
 (config! 'cachelevel 2)
 (config! 'logthreadinfo #t)
 (config! 'logelapsed #t)
@@ -284,13 +288,20 @@
 	  (lineout "  " (thread-id thread) "\t" thread)))
       (logwarn |RunDone| "Trying redundant commit")
       (commit)
+      (debug%watch "report"
+        (config 'jobid) (config 'appid) (config 'runbase) (config 'rundir)
+        (getenv "U8_JOBID") (getenv "U8_RUNBASE"))
+      (lineout (listdata (get state 'taskstate)))
       (when (or (config 'profiling #f) (and (exists? (config 'profiled)) (config 'profiled)))
         (profile/report import-enginefn #default
-                        profile/time profile/utime profile/stime profile/ncalls profile/nitems
+                        profile/time profile/utime profile/stime profile/runsecs profile/idlesecs
+                        profile/run% profile/idle%
+                        profile/ncalls profile/nitems
                         profile/waits profile/pauses profile/faults)
-        (let ((filename (glom (config 'jobid (config 'appid)) ".profile.xtype")))
-          (write-xtype (profiles->table) filename)
-          (logwarn |ProfileWritten| filename)))
+        (let ((table (profiles->table))
+              (filename (runfile ".profile.xtype")))
+          (write-xtype (profiles->table) (extend-byte-output filename))
+          (logwarn |ProfilesUpdated| filename)))
       (config! 'fastexit #t)
       (logwarn |RunDone|
 	"Everything is saved, exiting (main)"))))
@@ -304,13 +315,15 @@
   (optimize-locals!)
   (logwarn |Optimized| (get-source)))
 
-(define engine (get-module 'engine))
-
 (when (config 'profiling #f)
+  ;; (config! 'profiled import-enginefn)
   (config! 'profiled filestream/read)
-  (config! 'profiled {oid-value index-frame})
-  (config! 'profiled {commit knodb/commit engine/checkpoint
-                      (get engine 'engine-commit)})
+  (config! 'profiled {oid-value index-frame index/save! index/merge! flexindex/front})
+  (config! 'profiled {commit
+                      (get branches 'branch/commit!)
+                      (get branches 'index/branch)
+                      (get flexindex 'getfront)
+                      (get flexindex 'make-front)})
   (config! 'profiled 
 	   {get-wikidref probe-wikidref get-wikidprop
 	    import-wikid-item 
