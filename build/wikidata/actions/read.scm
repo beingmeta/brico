@@ -52,11 +52,10 @@
 (varconfig! chain dochain config:boolean)
 
 (define %optmods
-  '{knodb knodb/flexpool knodb/flexindex knodb/adjuncts 
-    knodb/branches knodb/typeindex
-    brico brico/indexing brico/build/wikidata
-    engine engine/readfile
-    io/filestream})
+ '{knodb knodb/flexpool knodb/flexindex knodb/adjuncts 
+   knodb/branches knodb/typeindex
+   brico brico/indexing brico/build/wikidata
+   engine engine/readfile})
 
 ;;; Reading data
 
@@ -288,33 +287,39 @@
 	  (lineout "  " (thread-id thread) "\t" thread)))
       (logwarn |RunDone| "Trying redundant commit")
       (commit)
-      (debug%watch "report"
-        (config 'jobid) (config 'appid) (config 'runbase) (config 'rundir)
-        (getenv "U8_JOBID") (getenv "U8_RUNBASE"))
       (lineout (listdata (get state 'taskstate)))
       (when (or (config 'profiling #f) (and (exists? (config 'profiled)) (config 'profiled)))
         (profile/report import-enginefn #default
-                        profile/time profile/utime profile/stime profile/runsecs profile/idlesecs
+                        profile/time profile/utime profile/stime
+			profile/runsecs profile/idlesecs
                         profile/run% profile/idle%
                         profile/ncalls profile/nitems
                         profile/waits profile/pauses profile/faults)
         (let ((table (profiles->table))
               (filename (runfile ".profile.xtype")))
+	  (store! table 'taskstate (get state 'taskstate))
+	  (store! table 'summary
+	    (frame-create #f
+	      'name (get state 'name)
+	      'started (get state 'started)
+	      'batchsize (get state 'batchsize)
+	      'stopfile (get state 'stopfile)
+	      'donefile (get state 'donefile)
+	      'filltime (get state 'filltime)
+	      'threadtime (get state 'threadtime)
+	      'clocktime (get state 'clocktime)
+	      'nthreads (get state 'nthreads)
+	      'maxitems (get state 'maxitems)
+	      'stopval (get state 'stopval)
+	      'items (get state 'items)
+	      'cycles (get state 'cycles)))
+	  (store! table 'opts (get state 'opts))
           (write-xtype (profiles->table) (extend-byte-output filename))
           (logwarn |ProfilesUpdated| filename)))
       (config! 'fastexit #t)
       (logwarn |RunDone|
 	"Everything is saved, exiting (main)"))))
   
-(when (config 'optimized #t)
-  (optimize! '{knodb knodb/flexpool knodb/flexindex knodb/adjuncts 
-	       knodb/branches knodb/typeindex
-	       brico brico/indexing brico/build/wikidata
-	       engine engine/readfile
-	       io/filestream})
-  (optimize-locals!)
-  (logwarn |Optimized| (get-source)))
-
 (when (config 'profiling #f)
   ;; (config! 'profiled import-enginefn)
   (config! 'profiled filestream/read)

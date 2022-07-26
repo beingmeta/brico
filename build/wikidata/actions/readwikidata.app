@@ -10,6 +10,7 @@
 (INFILE #:path:"wikidata-latest-all.json")
 ;;(INFILE #:source:"wikidata-2021-10-06-all.json")
 (WIKIDATA #:path"./fresh/")
+(OPTMODS brico/build/wikidata/actions/read)
 (APPMODULE brico/build/wikidata/actions/read)
 (APPMODS {brico engine})
 (LOGFREQ 180)
