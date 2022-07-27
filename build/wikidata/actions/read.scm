@@ -199,9 +199,9 @@
 
 (define (import-enginefn batch batch-state loop-state task-state)
   (local index (try (get batch-state 'index) (get loop-state 'index)))
-  (local wikidprops (get loop-state 'wikidprops.index))
-  (local base.index (get loop-state 'base.index))
-  (local wikids.index (get loop-state 'wikids.index))
+  (local wikidprops (get batch-state 'wikidprops.index))
+  (local base.index (get batch-state 'base.index))
+  (local wikids.index (get batch-state 'wikids.index))
   (doseq (entry batch)
     (let* ((line (if (pair? entry) (cdr entry) entry))
 	   (json (onerror (jsonparse line 'symbolize) #f))
@@ -249,7 +249,7 @@
 	 infile ,(config 'infile "latest-all.json")
 	 posfn  #t
 	 openfn ,open-wikidata-file
-	 branchindexes index
+	 branchindexes {index wikidprops.index base.index wikids.index} 
 	 maxitems ,maxitems
 
 	 batchcall #t
