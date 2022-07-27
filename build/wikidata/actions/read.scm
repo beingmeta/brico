@@ -5,7 +5,7 @@
 (in-module 'brico/build/wikidata/actions/read)
 
 (use-module '{webtools archivetools texttools logger varconfig})
-(use-module '{io/filestream text/stringfmts optimize})
+(use-module '{io/filestream text/stringfmts fifo optimize})
 (use-module '{kno/reflect kno/profile kno/profiling kno/mttools kno/statefiles})
 (use-module '{engine engine/readfile})
 
@@ -15,6 +15,7 @@
 (module-export! '{main})
 (module-export! '{import-wikid-item convert-claims})
 
+(define fifo (get-module 'fifo))
 (define engine (get-module 'engine))
 (define branches (get-module 'knodb/branches))
 (define flexindex (get-module 'knodb/flexindex))
@@ -55,7 +56,7 @@
  '{knodb knodb/flexpool knodb/flexindex knodb/adjuncts 
    knodb/branches knodb/typeindex
    brico brico/indexing brico/build/wikidata
-   engine engine/readfile})
+   fifo engine engine/readfile})
 
 ;;; Reading data
 
@@ -289,13 +290,13 @@
       (commit)
       (lineout (listdata (get state 'taskstate)))
       (when (or (config 'profiling #f) (and (exists? (config 'profiled)) (config 'profiled)))
-        (profile/report import-enginefn #default
+        (profile/report (get engine 'engine-threadfn) #default
                         profile/time profile/utime profile/stime
 			profile/runsecs profile/idlesecs
                         profile/run% profile/idle%
                         profile/ncalls profile/nitems
                         profile/waits profile/pauses profile/faults)
-        (let ((table (profiles->table))
+        (let ((table (profiles->table #default (get engine 'engine-threadfn)))
               (filename (runfile ".profile.xtype")))
 	  (store! table 'taskstate (get state 'taskstate))
 	  (store! table 'summary
@@ -325,6 +326,8 @@
   (config! 'profiled filestream/read)
   (config! 'profiled {oid-value index-frame index/save! index/merge! flexindex/front})
   (config! 'profiled {commit
+                      (get fifo 'fifo/popvec)
+                      (get engine 'engine-threadfn)
                       (get branches 'branch/commit!)
                       (get branches 'index/branch)
                       (get flexindex 'getfront)
@@ -332,6 +335,7 @@
   (config! 'profiled 
 	   {get-wikidref probe-wikidref get-wikidprop
 	    import-wikid-item 
+	    import-enginefn
 	    convert-claims convert-lexslot
 	    convert-sitelinks
 	    filestream/read}))
