@@ -23,5 +23,4 @@
 (MAXITEMS 1_500_000 #default)
 ;;(MAXITEMS 500_000 #default)
 (PROFILING #t)
-(NTHREADS 0.75)
-
+(NTHREADS 0.9)

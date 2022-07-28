@@ -289,13 +289,13 @@
       (logwarn |RunDone| "Trying redundant commit")
       (commit)
       (lineout (listdata (get state 'taskstate)))
-      (when (or (config 'profiling #f) (and (exists? (config 'profiled)) (config 'profiled)))
+      (when (and (exists? (config 'profiled)) (config 'profiled))
         (profile/report (get engine 'engine-threadfn) #default
-                        profile/time profile/utime profile/stime
-			profile/runsecs profile/idlesecs
+                        profile/clocktime profile/runtime profile/ncalls
                         profile/run% profile/idle%
-                        profile/ncalls profile/nitems
-                        profile/waits profile/pauses profile/faults)
+                        profile/waits profile/pauses profile/faults
+			profile/runsecs profile/idlesecs
+                        profile/time profile/utime profile/stime)
         (let ((table (profiles->table #default (get engine 'engine-threadfn)))
               (filename (runfile ".profile.xtype")))
 	  (store! table 'taskstate (get state 'taskstate))
