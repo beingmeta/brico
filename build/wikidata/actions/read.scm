@@ -20,14 +20,7 @@
 (define branches (get-module 'knodb/branches))
 (define flexindex (get-module 'knodb/flexindex))
 
-(config! 'cachelevel 2)
-(config! 'logthreadinfo #t)
-(config! 'logelapsed #t)
-(config! 'thread:logexit #f)
-(config! 'filestream:inbufsize (* 50 #mib))
-(config! 'filestream:bufsize (* 50 #mib))
-(config! 'dbloglevel %warn%)
-(config! 'xprofiling #t)
+(config-default! 'dbloglevel %warn%)
 
 (define-init all-threads {})
 
@@ -228,6 +221,7 @@
 
 (define (open-wikidata-file file)
   (let ((in (open-input-file file)))
+    (setbuf! in (config 'bufsize (* 8 #mib)))
     (getline in)
     in))
 
