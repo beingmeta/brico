@@ -219,9 +219,10 @@
   (dbctl brico.pool 'readonly #f)
   (dbctl wikidprops.index 'readonly #f))
 
-(define (open-wikidata-file file)
-  (let ((in (open-input-file file)))
-    (setbuf! in (config 'bufsize (* 8 #mib)))
+(define (open-wikidata-file file (opts #f))
+  (let ((in (open-input-file file))
+        (bufsize (getopt opts 'bufsize (config 'bufsize))))
+    (when bufsize (setbuf! in bufsize))
     (getline in)
     in))
 
