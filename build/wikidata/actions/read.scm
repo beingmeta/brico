@@ -6,7 +6,7 @@
 
 (use-module '{webtools archivetools texttools logger varconfig})
 (use-module '{io/filestream text/stringfmts fifo optimize})
-(use-module '{kno/reflect kno/profile kno/profiling kno/mttools kno/statefiles})
+(use-module '{kno/reflect kno/profile kno/profiling kno/threads kno/mttools kno/statefiles})
 (use-module '{engine engine/readfile})
 
 (use-module '{knodb knodb/branches knodb/typeindex regex knodb/flexindex})
@@ -46,10 +46,10 @@
 (varconfig! chain dochain config:boolean)
 
 (define %optmods
- '{knodb knodb/flexpool knodb/flexindex knodb/adjuncts 
+ '{knodb knodb/flexpool knodb/flexindex knodb/adjuncts
    knodb/branches knodb/typeindex
    brico brico/indexing brico/build/wikidata
-   fifo engine engine/readfile})
+   fifo fifo/workq engine engine/readfile})
 
 ;;; Reading data
 
@@ -88,8 +88,8 @@
 (define refslots '{type datatype rank snaktype type})
 
 (define known-slotids (choice typeslots refslots '{property precision id}))
-(define-init add-known-slotid! 
-  (slambda (slot) 
+(define-init add-known-slotid!
+  (slambda (slot)
     (set+! known-slotids slot)
     ;; This should normalize it
     (set! known-slotids known-slotids)))
@@ -139,6 +139,7 @@
 	 (ref (get-wikidref id))
 	 (type (get item 'type))
 	 (needs-init (fail? (oid-value ref))))
+    (when needs-init (set-oid-value! ref #[]))
     ;;(info%watch "IMPORT-WIKID-ITEM" id ref)
     (unless (test ref 'lastrevid (get item 'lastrevid))
       (store! ref 'wikid id)
@@ -227,7 +228,7 @@
     in))
 
 (define (runloop (maxitems (config 'maxitems #f))
-		 (threadcount (mt/threadcount (config 'nthreads #t)))
+                 (nthreads (config 'wikidread:threads (config 'nthreads #default)))
 		 (file (CONFIG 'INFILE "latest-wikidata.json")))
   (let* ((statefile (if wikidata.dir (mkpath wikidata.dir "read.state") "read.state"))
 	 (state (tryif (file-exists? statefile) (statefile/read statefile)))
@@ -245,22 +246,24 @@
 	 infile ,(config 'infile "latest-all.json")
 	 posfn  #t
 	 openfn ,open-wikidata-file
-	 branchindexes {index wikidprops.index base.index wikids.index} 
+	 branchindexes {index wikidprops.index base.index wikids.index}
 	 maxitems ,maxitems
+         nthreads ,nthreads
 
 	 batchcall #t
-	 nthreads ,threadcount
 	 batchsize ,(config 'batchsize 1000)
 	 queuesize ,(config 'queuesize 10000)
 	 fillsize ,(config 'fillsize 5000)
-	 fillstep ,(config 'fillstep 
-			   (if threadcount
-			       (* threadcount wikidread-fillstep-perthread)
-			       wikidread-fillstep-perthread))
+	 fillstep ,(config 'fillstep
+		     (if nthreads
+			 (* nthreads wikidread-fillstep-perthread)
+			 wikidread-fillstep-perthread))
 
 	 checkfreq ,(config 'checkfreq 60)
-	 checktests ,(engine/delta 'items (config 'checkcount 100000))
-	 checkpoint ,{wikidata.pool brico.pool wikidbuild.index wikidprops.index base.index wikids.index}
+	 checktests ,(engine/delta 'items (config 'wikidread:checkcount 100000))
+	 checkpoint ,{wikidata.pool brico.pool
+                      wikidbuild.index wikidprops.index base.index
+                      wikids.index}
 	 stopfns
 	 ,(engine/test 'memusage (config 'maxmem {} config:bytes)
 		       'items (or maxitems {})
@@ -271,19 +274,19 @@
 	 logfns {,engine/log ,engine/logrusage ,engine/readfile/log}
 	 logfreq ,(config 'logfreq 30)])))
 
-(define (main (maxitems (CONFIG 'MAXITEMS #f))
-	      (threadcount (mt/threadcount (config 'nthreads #t)))
+(define (read (maxitems (CONFIG 'MAXITEMS #f))
+              (nthreads (threadcount (config 'wikidread:threads (config 'nthreads #default))))
 	      (file (CONFIG 'INFILE "latest-wikidata.json")))
   (unless (file-exists? file) (irritant file |MissingInputFile|))
   (setup)
   (unless (and maxitems (= maxitems 0))
-    (let ((state (runloop maxitems threadcount file)))
+    (let ((state (runloop maxitems nthreads file)))
       (logwarn |Engine/Threads/Done|
 	(do-choices (thread (get state 'threads))
 	  (lineout "  " (thread-id thread) "\t" thread)))
-      (logwarn |RunDone| "Trying redundant commit")
+      (logwarn |RunDone| "Trying final (probably redundant) commit")
       (commit)
-      (lineout (listdata (get state 'taskstate)))
+      (logwarn |RunDone| "Finished final (probably redundant) commit")
       (when (and (exists? (config 'profiled)) (config 'profiled))
         (profile/report (get engine 'engine-threadfn) #default
                         profile/clocktime profile/runtime profile/ncalls
@@ -313,9 +316,9 @@
           (write-xtype (profiles->table) (extend-byte-output filename))
           (logwarn |ProfilesUpdated| filename)))
       (config! 'fastexit #t)
-      (logwarn |RunDone|
-	"Everything is saved, exiting (main)"))))
-  
+      (logwarn |RunDone| "Everything is saved, exiting (read)"))))
+(define main read)
+
 (when (config 'profiling #f)
   ;; (config! 'profiled import-enginefn)
   (config! 'profiled filestream/read)
@@ -327,9 +330,9 @@
                       (get branches 'index/branch)
                       (get flexindex 'getfront)
                       (get flexindex 'make-front)})
-  (config! 'profiled 
+  (config! 'profiled
 	   {get-wikidref probe-wikidref get-wikidprop
-	    import-wikid-item 
+	    import-wikid-item
 	    import-enginefn
 	    convert-claims convert-lexslot
 	    convert-sitelinks
@@ -343,3 +346,4 @@
    (define (import (in in))
      (import-wikid-item (read-item in) wikidbuild.index base.index wikids.index))))
 
+;;(procedure/trace! import-wikid-item 'all)
