@@ -26,11 +26,6 @@
 
 (define (main poolname)
   (config! 'appid (glom "index-" (basename poolname ".pool") "-lattice"))
-  (when (config 'optimize #t)
-    (optimize! '{engine brico brico/indexing brico/lookup
-		 knodb knodb/search 
-		 knodb/fuzz knodb/fuzz/strings knodb/fuzz/terms
-		 knodb/fuzz/text}))
   (let* ((pool (getdbpool poolname))
 	 (target (pool/index/target pool 'name 'lattice))
 	 (frames (pool-elts pool)))
@@ -48,7 +43,7 @@
 (module-export! 'main)
 
 (when (config 'optimize #t config:boolean)
-  (optimize! '{knodb knodb/branches knodb/search 
+  (optimize! '{knodb knodb/branches knodb/search
 	       knodb/fuzz knodb/fuzz/strings knodb/fuzz/terms
 	       knodb/tinygis
 	       fifo engine})

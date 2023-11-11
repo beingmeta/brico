@@ -38,12 +38,12 @@
 (define fixup #f)
 
 (define wn-sources
-  {@1/0{WN16} @1/46074"Wordnet 3.0, Copyright 2006 Princeton University" 
+  {@1/0{WN16} @1/46074"Wordnet 3.0, Copyright 2006 Princeton University"
    @1/94d47"Wordnet 3.1, Copyright 2011 Princeton University"})
 
 (define index-sources
   '{@1/0{WN16}
-    @1/46074"Wordnet 3.0, Copyright 2006 Princeton University" 
+    @1/46074"Wordnet 3.0, Copyright 2006 Princeton University"
     @1/94d47"Wordnet 3.1, Copyright 2011 Princeton University"
     wikidata})
 
@@ -96,7 +96,7 @@
 
 (define (main poolname)
   (config! 'appid  "index-core")
-  (let* ((pool (getdbpool poolname #f))
+  (let* ((pool (knodb/ref poolname #f))
 	 (core.index (pool/index/target pool 'name 'core))
 	 (latlong.index (pool/index/target pool 'name 'latlong))
 	 (wikidrefs.index (pool/index/target pool 'keyslot 'wikidref))
@@ -114,8 +114,7 @@
 		wikidprops.index ,wikidprops.index
 		wikidrefs.index ,wikidrefs.index]
 	 branchindexes {core.index wordnet.index wikidprops.index
-			wikidrefs.index 
-			latlong.index}
+			wikidrefs.index latlong.index}
 	 batchsize ,(config 'batchsize 10000)
 
 
@@ -124,7 +123,7 @@
 	 ;; 	      (engine/maxchanges (getopt opts 'maxchanges 1_000_000))}
 
 	 checktests ,(engine/interval (config 'savefreq 60))
-	 checkpoint ,{pool core.index wikidprops.index wordnet.index 
+	 checkpoint ,{pool core.index wikidprops.index wordnet.index
 		      wikidrefs.index latlong.index}
 	 logfns {,engine/log ,engine/logrusage}
 	 logfreq ,(config 'logfreq 50)
@@ -142,7 +141,7 @@
 (module-export! 'main)
 
 (when (config 'optimize #t config:boolean)
-  (optimize! '{knodb knodb/branches knodb/search 
+  (optimize! '{knodb knodb/branches knodb/search
 	       knodb/fuzz knodb/fuzz/strings knodb/fuzz/terms
 	       knodb/tinygis
 	       fifo engine})
