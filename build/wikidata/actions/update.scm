@@ -33,11 +33,11 @@
 
 (defambda (update-concepts (concepts) (opts #f))
   (default! concepts (?? 'has 'wikidref))
-  (engine/run update-enginefn concepts 
+  (engine/run update-enginefn concepts
     `#[checkpoint ,{brico.pool wikid.pool (dbctl {brico.pool wikid.pool} 'partitions)}
        nthreads ,(getopt opts 'nthreads (config 'nthreads #t))
        batchsize ,(config 'BATCHSIZE 5000)
-       checkfreq 15
+       checkfreq 60
        checktests ,(engine/delta 'items (getopt opts 'checkbatch 50000))]))
 
 (define (main)

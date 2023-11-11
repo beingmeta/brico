@@ -6,7 +6,7 @@
 
 (use-module '{webtools archivetools texttools})
 (use-module '{logger varconfig text/stringfmts})
-(use-module '{knodb knodb/branches knodb/typeindex 
+(use-module '{knodb knodb/branches knodb/typeindex
 	      knodb/flexindex})
 (use-module '{brico})
 (define %optmods '{brico logger knodb knodb/branches knodb/typeindex knodb/flexindex})
@@ -147,18 +147,20 @@
 		 size #8mib register #t]))
 
   (set! words.index
-    (open-flex dir "words" [indextype 'kindex size (* 6 1024 1024) create #t
-			    readonly (not (config 'wikidata:build))
-			    justfront (config 'wikidata:build)
-			    keyslot 'words register #t
-			    maxkeys (* 4 1024 1024)]))
+    (open-flex dir "words"
+               [indextype 'kindex size (* 6 1024 1024) create #t
+		readonly (not (config 'wikidata:build))
+		justfront (config 'wikidata:build)
+		keyslot 'words register #t
+		maxkeys (* 4 1024 1024)]))
 
   (set! norms.index
-    (open-flex dir "norms" [indextype 'kindex size (* 6 1024 1024) create #t
-			    readonly (not (config 'wikidata:build))
-			    justfront (config 'wikidata:build)
-			    keyslot 'norms register #t
-			    maxkeys (* 4 1024 1024)]))
+    (open-flex dir "norms"
+               [indextype 'kindex size (* 6 1024 1024) create #t
+		readonly (not (config 'wikidata:build))
+		justfront (config 'wikidata:build)
+		keyslot 'norms register #t
+		maxkeys (* 4 1024 1024)]))
 
   (set! props.index
     (open-flex dir "props"
@@ -192,8 +194,8 @@
       (logwarn |MakingWikidProps| "For brico.pool")
       (config! 'brico:wikidprops new)
       (unless wikidprops.index (error |NoWikidprops|))))
-  
-  (let ((props {(find-frames core.index 'type 'wikidprop) 
+
+  (let ((props {(find-frames core.index 'type 'wikidprop)
 		(find-frames wikidprops.index 'type 'wikidprop)})
 	(table propmaps.table))
     (prefetch-oids! props)
@@ -211,7 +213,7 @@
      {base.index wikids.index words.index norms.index refs.index
       props.index subclassof.index instanceof.index}
      #[register #t]))
-  
+
   (set! wikidata.index
     (make-aggregate-index
      {base.index wikids.index words.index norms.index refs.index
@@ -249,7 +251,7 @@
 
 (define (wikidata/save!)
   (knodb/commit! {wikidata.pool wikidata.index brico.pool
-		  base.index wikids.index 
+		  base.index wikids.index
 		  words.index norms.index
 		  refs.index props.index
 		  wikidprops.index}))
@@ -278,11 +280,11 @@
 (define (probe-wikidref id)
   (if (has-prefix id "Q")
       (oid-plus @31c1/0 (string->number (slice id 1)))
-      (tryif (has-prefix id {"p" "P"}) 
+      (tryif (has-prefix id {"p" "P"})
 	(get propmaps.table id))))
 
 (define (get-wikidprop id)
-  (if (or (symbol? id) (string? id)) 
+  (if (or (symbol? id) (string? id))
       (get propmaps.table (upcase id))
       id))
 
@@ -449,7 +451,7 @@
      (forseq (f toprefs)
        (vector `(wikidmap! ,bf ,f)
 	       (qc (pick-one (get (get f 'descriptions) 'en)))
-	       (try (?? 'wikidref (get f 'wikid)) #f)))))) 
+	       (try (?? 'wikidref (get f 'wikid)) #f))))))
 
 (module-export! '{get-wikid-matches wikid/listmaps})
 
