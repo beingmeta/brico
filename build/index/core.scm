@@ -4,9 +4,10 @@
 (in-module 'brico/build/index/core)
 (use-module '{texttools varconfig logger optimize text/stringfmts knodb engine})
 ;; This module needs to go early because it (temporarily) disables the brico database
+(use-module '{brico brico/indexing})
+
 (use-module 'brico/build/index)
 
-(use-module '{brico brico/indexing})
 (use-module 'knodb/tinygis)
 
 (define %volatile '{fixup})
@@ -18,12 +19,12 @@
 
 (define index-also '{ticker})
 
-(define core-index (target-file "core.index"))
-(define wikidprops-index (target-file "wikidprops.index"))
-(define wikidrefs-index (target-file "wikidrefs.index"))
-(define latlong-index (target-file "latlong.index"))
-(define wordnet-index (target-file "wordnet.index"))
-(define wikidprops-index (target-file "wikidprops.index"))
+;; (define core-index (target-file "core.index"))
+;; (define wikidprops-index (target-file "wikidprops.index"))
+;; (define wikidrefs-index (target-file "wikidrefs.index"))
+;; (define latlong-index (target-file "latlong.index"))
+;; (define wordnet-index (target-file "wordnet.index"))
+;; (define wikidprops-index (target-file "wikidprops.index"))
 
 (define (index-latlong index f)
   (when (test f '{lat long})
@@ -64,7 +65,7 @@
     (prefetch-oids! frames)
     (do-choices (f frames)
       (when fixup (fixup f))
-      (cond ((or (test f 'type 'deleted) (test f 'deleted))
+      (cond ((or (empty? (oid-value f)) (test f 'type 'deleted) (test f 'deleted))
 	     (index-frame core.index f 'status 'deleted))
 	    ((test f 'source index-sources)
 	     (when (exists? wordnet.index)
@@ -94,50 +95,51 @@
 	    (else (index-frame core.index f 'status 'deleted))))
   (swapout frames)))
 
-(define (main poolname)
-  (config! 'appid  "index-core")
+(define (main poolname (outdir #f))
+  (config! 'appid  "brico:index-core")
   (let* ((pool (knodb/ref poolname #f))
-	 (core.index (pool/index/target pool 'name 'core))
-	 (latlong.index (pool/index/target pool 'name 'latlong))
-	 (wikidrefs.index (pool/index/target pool 'keyslot 'wikidref))
+	 (core.index (pool/index/target pool outdir 'name 'core))
+	 (latlong.index (pool/index/target pool outdir 'name 'latlong))
+	 (wikidrefs.index (pool/index/target pool outdir 'keyslot 'wikidref))
 	 (index (make-aggregate-index {core.index latlong.index wikidrefs.index}
 				      [register #t]))
 	 (wordnet.index (tryif (overlaps? (pool-base pool) @1/0)
-			  (pool/index/target pool 'name 'wordnet)))
+			  (pool/index/target pool outdir 'name 'wordnet)))
 	 (wikidprops.index (tryif (overlaps? (pool-base pool) @1/0)
-			     (pool/index/target pool 'name 'wikidprops))))
+			     (pool/index/target pool outdir 'name 'wikidprops))))
     (info%watch "MAIN" pool core.index wikidprops.index latlong.index wordnet.index)
-    (engine/run core-indexer (pool-elts pool)
-      `#[loop #[core.index ,core.index
-		wordnet.index ,wordnet.index
-		latlong.index ,latlong.index
-		wikidprops.index ,wikidprops.index
-		wikidrefs.index ,wikidrefs.index]
-	 branchindexes {core.index wordnet.index wikidprops.index
-			wikidrefs.index latlong.index}
-	 batchsize ,(config 'batchsize 10000)
+    (prog1
+        (engine/run core-indexer (pool-elts pool)
+          `#[loop #[core.index ,core.index
+		    wordnet.index ,wordnet.index
+		    latlong.index ,latlong.index
+		    wikidprops.index ,wikidprops.index
+		    wikidrefs.index ,wikidrefs.index]
+	     branchindexes {core.index wordnet.index wikidprops.index
+			    wikidrefs.index latlong.index}
+	     batchsize ,(config 'batchsize 10000)
 
 
-	 ;; checktests ,{(tryif (config 'savefreq)
-	 ;; 		(engine/interval (getopt opts 'savefreq (config 'savefreq 60))))
-	 ;; 	      (engine/maxchanges (getopt opts 'maxchanges 1_000_000))}
+	     ;; checktests ,{(tryif (config 'savefreq)
+	     ;; 		(engine/interval (getopt opts 'savefreq (config 'savefreq 60))))
+	     ;; 	      (engine/maxchanges (getopt opts 'maxchanges 1_000_000))}
 
-	 checktests ,(engine/interval (config 'savefreq 60))
-	 checkpoint ,{pool core.index wikidprops.index wordnet.index
-		      wikidrefs.index latlong.index}
-	 logfns {,engine/log ,engine/logrusage}
-	 logfreq ,(config 'logfreq 50)
-	 logchecks #t])
-    (commit)
-    (swapout)
-    (let ((wordforms (find-frames core.index 'type 'wordform)))
-      (lognotice |Wordforms|
-	"Indexing " ($count (choice-size wordforms) "wordform"))
-      (prefetch-oids! wordforms)
-      (do-choices (f wordforms)
-	(index-frame (try wordnet.index core.index) f '{word of sensenum language rank type}))
-      (commit {wordnet.index core.index}))
-    (commit)))
+	     checktests ,(engine/interval (config 'savefreq 60))
+	     checkpoint ,{pool core.index wikidprops.index wordnet.index
+		          wikidrefs.index latlong.index}
+	     logfns {,engine/log ,engine/logrusage}
+	     logfreq ,(config 'logfreq 50)
+	     logchecks #t])
+      (commit)
+      (swapout)
+      (let ((wordforms (find-frames core.index 'type 'wordform)))
+        (lognotice |Wordforms|
+	  "Indexing " ($count (choice-size wordforms) "wordform"))
+        (prefetch-oids! wordforms)
+        (do-choices (f wordforms)
+	  (index-frame (try wordnet.index core.index) f '{word of sensenum language rank type}))
+        (commit {wordnet.index core.index}))
+      (commit))))
 (module-export! 'main)
 
 (when (config 'optimize #t config:boolean)

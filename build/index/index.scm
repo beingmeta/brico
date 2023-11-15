@@ -13,7 +13,7 @@
 (config! 'thread:logexit #f)
 
 ;; We disable BRICO setup until we have used our pool (which might be BRICO)
-(config! 'brico:disabled #t)
+;;(config! 'brico:disabled #t)
 
 (define indir (config 'indir (abspath "brico/")))
 (define outdir (config 'outdir (abspath "fresh/")))
@@ -21,6 +21,8 @@
 
 (unless (file-directory? bugjar) (mkdir bugjar))
 (config! 'engine:bugjar bugjar)
+
+;;(config! 'engine:threads 1)
 
 (define brico-pool-names "brico.pool")
 
@@ -35,7 +37,7 @@
 
 (define (getdbpool arg (indexes 'core))
   (let ((pool (knodb/ref arg)))
-    (when (eq? (pool-base pool) @1/0) 
+    (when (eq? (pool-base pool) @1/0)
       (config! 'bricosource pool))
     (config! 'brico:disabled #f)
     (when indexes
@@ -63,7 +65,7 @@
   (let ((table (make-hashtable)))
     (do-choices (lang (pickoids all-languages))
       (store! table {lang (get lang 'key)}
-	      (cons-langinfo lang (get lang 'key) 
+	      (cons-langinfo lang (get lang 'key)
 			     (get norm-map lang)
 			     (get alias-map lang)
 			     (get frag-map lang)
@@ -78,7 +80,7 @@
 
 ;; (define (threadindex/merge! into from)
 ;;   (do-choices (slotid (getkeys from))
-;;     (index/merge! (try (get into slotid) (get into '%default)) 
+;;     (index/merge! (try (get into slotid) (get into '%default))
 ;; 		  (get from slotid))))
 
 (define dontindex (choice (?? 'source @1/1)))
@@ -110,9 +112,9 @@
 	 (writable-index filename
 			 `(#[register ,(getopt opts 'register #t)]
 			   . ,opts)))
-	(else (when (file-exists? filename) 
-		(logwarn |ReplacingFile| 
-		  (write filename) ", backup in " 
+	(else (when (file-exists? filename)
+		(logwarn |ReplacingFile|
+		  (write filename) ", backup in "
 		  (write  (glom filename ".bak")))
 		(move-file filename (glom filename ".bak")))
 	      (make-index filename
@@ -142,7 +144,7 @@
 ;;   (local poolsize (if pool (pool-load pool) #1mib))
 ;;   (unless (search "/" filename)
 ;;     (set! filename (mkpath outdir filename)))
-;;   (unless (file-directory? (dirname filename)) 
+;;   (unless (file-directory? (dirname filename))
 ;;     (mkdirs (dirname filename)))
 ;;   (let ((index (access-index filename opts (get-index-size poolsize indexsize) keyslot)))
 ;;     (when pool
