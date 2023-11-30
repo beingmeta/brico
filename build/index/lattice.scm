@@ -24,10 +24,10 @@
       (knodb/index*! index f ingredientof* ingredientof ingredients*))
     (swapout frames)))
 
-(define (main poolname)
+(define (main poolname (output #f))
   (config! 'appid (glom "index-" (basename poolname ".pool") "-lattice"))
   (let* ((pool (getdbpool poolname))
-	 (target (pool/index/target pool 'name 'lattice))
+	 (target (pool/index/target pool output 'name 'lattice))
 	 (frames (pool-elts pool)))
     (engine/run index-batch (difference frames (?? 'source @1/1) (?? 'status 'deleted))
       `#[loop #[index ,target]

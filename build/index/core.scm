@@ -109,7 +109,7 @@
 			     (pool/index/target pool outdir 'name 'wikidprops))))
     (info%watch "MAIN" pool core.index wikidprops.index latlong.index wordnet.index)
     (prog1
-        (engine/run core-indexer (pool-elts pool)
+        (engine/run core-indexer (difference (pool-elts pool) (?? 'status 'deleted))
           `#[loop #[core.index ,core.index
 		    wordnet.index ,wordnet.index
 		    latlong.index ,latlong.index
