@@ -2,18 +2,16 @@
 
 (in-module 'brico/build/index)
 
-(use-module '{logger texttools varconfig fifo engine knodb text/stringfmts ezrecords})
-(use-module '{knodb knodb/search knodb/fuzz knodb/branches knodb/flexindex})
+(use-module
+ '{logger texttools varconfig fifo engine knodb
+   text/stringfmts ezrecords})
+(use-module
+ '{knodb knodb/search knodb/fuzz knodb/branches
+   knodb/flexindex})
 
 (module-export! '{target-index lex-index lex-indexes
 		  target-file getdbpool
 		  brico-pool-names get-index-size get-pool-size})
-
-(config! 'cachelevel 2)
-(config! 'thread:logexit #f)
-
-;; We disable BRICO setup until we have used our pool (which might be BRICO)
-;;(config! 'brico:disabled #t)
 
 (define indir (config 'indir (abspath "brico/")))
 (define outdir (config 'outdir (abspath "fresh/")))

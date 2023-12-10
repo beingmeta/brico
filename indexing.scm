@@ -11,11 +11,6 @@
 (define %nosubst '{indexinfer default-frag-window})
 (define %optmods '{knodb brico logger})
 
-(define fix-wikid #t)
-(varconfig! 'brico:wikid:fix fix-wikid)
-(define wikid-fixers {})
-(varconfig! 'brico:wikid:fixers wikid-fixers)
-
 ;; When true, this assumes that the lattice has been indexed,
 ;;  so that closures can be computed based on their inverses
 ;;  (e.g. (get x genls*)== (?? @?specls* x))
@@ -44,7 +39,7 @@
 	   (dogenls (or (not genslot) (overlaps? genslot genls*))))
       ;; (when (eq? slotid '%id) (%watch "INDEX-RELATION" index frame slotid values))
       (index-frame index frame slotid values)
-      (when inverse 
+      (when inverse
 	(index-frame index oidvals inverse frame))
       (when (or genls+ dogenls)
 	(index-frame index frame slotid (list oidvals)))
@@ -93,7 +88,7 @@
       ;;  capitalization.  Normalizing capitalization makes all elements of a
       ;;  compound be uppercase and makes oddly capitalized terms (e.g. iTunes)
       ;;  be lowercased.
-      (index-frame index frame slot 
+      (index-frame index frame slot
 		   {expvalues normcaps lowered
 		    (dedash expvalues)
 		    (dedash (difference lowered expvalues))
@@ -153,7 +148,7 @@
 	 (gloss-words (filter-choices (word (elts wordlist))
 			(< 2 (length word) 16))))
     (index-frame index frame slotid
-		 (choice gloss-words 
+		 (choice gloss-words
 			 (tryif stem (string->packet (porter-stem gloss-words)))))))
 
 ;;; Indexing string fragments
@@ -218,7 +213,7 @@
     '{type sensecat source
       topic_domain region_domain usage_domain
       derivations language
-      fips-code dsg 
+      fips-code dsg
       wikid wikidref wikidef
       has})
   (index-frame index frame 'has (getkeys frame))
@@ -253,11 +248,11 @@
   (when (test frame 'type 'wordform)
     (index-frame index frame wordform-slotids)
     (let ((derivations (get frame 'derivations)))
-      (index-frame index frame 
+      (index-frame index frame
 	'derivations
-	{derivations 
-	 (get derivations 'of) 
-	 (get (get derivations 'of) 'of) 
+	{derivations
+	 (get derivations 'of)
+	 (get (get derivations 'of) 'of)
 	 (get derivations 'word)
 	 (for-choices (d derivations)
 	   (cons (get d 'word) (get d 'type)))}))))
@@ -265,8 +260,8 @@
 ;;; Older indexing methods
 
 (define (index-concept index concept)
-  (index-brico index concept)  
-  (when (test concept 'wikidref) (index-wikid index concept))  
+  (index-brico index concept)
+  (when (test concept 'wikidref) (index-wikid index concept))
   (index-words index concept)
   (index-relations index concept)
   (index-refterms index concept)
@@ -352,12 +347,7 @@
 	(else (fail))))
 
 (define (index-wikid index concept)
-  (when (and fix-wikid (exists? wikid-fixers))
-    ((pick wikid-fixers applicable? concept) concept))
   (do-choices (slot (pick (pickoids (getkeys concept)) 'source 'wikidata))
-    (when fix-wikid
-      (if (%test concept slot #f) (drop! concept slot #f))
-      ((get wikid-fixers slot) concept))
     (do-choices (value (get concept slot))
       (cond ((string? value)
 	     (index-frame index concept slot value))

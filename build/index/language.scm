@@ -4,11 +4,17 @@
 (in-module 'brico/build/index/languages)
 
 (use-module '{texttools varconfig logger optimize text/stringfmts kno/threads engine})
-;;; This module needs to go early because it (temporarily) disables the brico database
-(use-module 'brico/build/index)
-
 (use-module '{knodb knodb/search knodb/fuzz knodb/adjuncts knodb/flexindex knodb/flexpool})
-(use-module '{brico})
+(use-module '{brico brico/build/index})
+
+(define %loglevel %notice%)
+
+(define %optmods
+  '{knodb knodb/branches knodb/search
+    knodb/fuzz knodb/fuzz/strings knodb/fuzz/terms
+    knodb/tinygis
+    fifo engine
+    brico brico/indexing})
 
 (define english @1/2c1c7)
 
@@ -170,7 +176,7 @@
        glosses.index ,glosses.index
        indicators.index ,indicators.index
        aliases.index ,aliases.index]))
-      
+
 (define (index-languages pool (indexes))
   (default! indexes (get-base-indexes pool))
   (let* ((nconcepts (max (pool-load pool) #mib))
@@ -201,28 +207,14 @@
 	 logchecks #t])
     (commit)))
 
-(define (main poolname)
+(define (main poolname (output #f))
   (config! 'appid (glom "index-" (basename poolname #t) "-terms"))
-  (when (config 'optimize #t)
-    (optimize! '{engine brico brico/indexing brico/lookup
-		 knodb knodb/search
-		 knodb/fuzz knodb/fuzz/strings knodb/fuzz/terms
-		 knodb/fuzz/text knodb/fuzz/graph}))
-  (let ((pool (getdbpool poolname)))
+  (let ((pool (pool/ref poolname)))
     (if (flexpool? pool)
 	(let ((indexes (get-base-indexes pool)))
 	  (do-choices (p (dbctl pool 'partitions) i)
 	    (config! 'appid (glom "index-" (basename poolname #t) "-terms." (1+ i)))
 	    (index-languages p indexes)))
 	(index-languages pool))))
-
-
-(when (config 'optimize #t config:boolean)
-  (optimize! '{knodb knodb/branches knodb/search 
-	       knodb/fuzz knodb/fuzz/strings knodb/fuzz/terms knodb/fuzz/phrases
-	       knodb/tinygis
-	       fifo engine})
-  (optimize! '{brico brico/indexing})
-  (optimize-locals!))
 
 (module-export! 'main)

@@ -4,12 +4,17 @@
 (in-module 'brico/build/index/termlogic)
 
 (use-module '{texttools varconfig logger optimize text/stringfmts engine})
-;;; This module needs to go early because it (temporarily) disables the brico database
-(use-module 'brico/build/index)
-
-;;; Other stuff
 (use-module '{knodb knodb/search knodb/fuzz})
-(use-module '{brico brico/indexing})
+(use-module '{brico brico/indexing brico/build/index})
+
+(define %loglevel %notice%)
+
+(define %optmods
+  '{knodb knodb/branches knodb/search
+    knodb/fuzz knodb/fuzz/strings knodb/fuzz/terms
+    knodb/tinygis
+    fifo engine
+    brico brico/indexing})
 
 (define (prefetcher oids done)
   (when done (commit) (clearcaches))
@@ -21,7 +26,7 @@
 (define relterm-slotids
   (choice relterms parts members ingredients partof memberof))
 
-(define indexrels 
+(define indexrels
   (difference {relterm-slotids (?? 'type 'wikidprop)}
 	      (?? 'type '{stringslot numslot lexslot timeslot quantslot textslot})))
 
@@ -98,12 +103,12 @@
 		    (find-frames indexes /always (get concept probably)))))
     (swapout concepts)))
 
-(define (main poolname)
+(define (main poolname (output #f))
   (config! 'appid
 	   (glom "index-" (basename poolname ".pool") "-termlogic"
 	     (if (config 'phase2) ".2" ".1")))
-  (let* ((pool (getdbpool poolname '{core lattice}))
-	 (termlogic.index (pool/index/target pool 'name 'termlogic)))
+  (let* ((pool (knodb/ref poolname (and output [altroot output])))
+	 (termlogic.index (pool/index/target pool output 'name 'termlogic)))
     (knodb/writable! termlogic.index)
     (engine/run (if (config 'phase2 #f) termlogic-phase2 termlogic-phase1)
 	(difference (pool-elts pool) (?? 'source @1/1) (?? 'status 'deleted))
@@ -120,9 +125,4 @@
 	(chain "PHASE2=yes" poolname))))
 (module-export! 'main)
 
-(optimize! '{brico engine fifo brico/indexing})
-(optimize-locals!)
 
-(when (config 'optimize #t config:boolean)
-  (optimize! '{brico engine fifo brico/indexing})
-  (optimize-locals!))

@@ -8,6 +8,15 @@
 (use-module 'brico/build/index)
 (use-module '{brico brico/indexing})
 
+(define %loglevel %notice%)
+
+(define %optmods
+  '{knodb knodb/branches knodb/search
+    knodb/fuzz knodb/fuzz/strings knodb/fuzz/terms
+    knodb/tinygis
+    fifo engine
+    brico brico/indexing})
+
 (config! 'indexinfer #f)
 
 (define (prefetcher oids done)
@@ -44,12 +53,7 @@
 
 (define (main poolname (output #f))
   (config! 'appid (glom "index-" (basename poolname ".pool") "-general"))
-  (when (config 'optimize #t)
-    (optimize! '{engine brico brico/indexing brico/lookup
-		 knodb knodb/search
-		 knodb/fuzz knodb/fuzz/strings knodb/fuzz/terms
-		 knodb/fuzz/text knodb/fuzz/graph}))
-  (let* ((pool (getdbpool poolname '{core lattice termlogic}))
+  (let* ((pool (knodb/ref poolname (and output [altroot output])))
 	 (props.index (pool/index/target pool output 'name 'properties))
 	 (graph.index (pool/index/target pool output 'name 'relations)))
     (commit pool) ;; Save metadata
@@ -66,6 +70,4 @@
     (commit)))
 (module-export! 'main)
 
-(when (config 'optimize #t config:boolean)
-  (optimize! '{brico engine fifo brico/indexing})
-  (optimize-locals!))
+
